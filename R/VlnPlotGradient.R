@@ -67,6 +67,8 @@ VlnPlotGradient <- function(
 ) {
 
   # ── 1. Resolve identity ──────────────────────────────────────────────────────────────────────
+  # If group.by is provided, temporarily set the active identity to that column.
+  # This mirrors Seurat::VlnPlot() behaviour exactly.
   original_idents <- NULL
   if (!is.null(group.by)) {
     if (!group.by %in% colnames(SeuratObject@meta.data)) {
@@ -75,10 +77,12 @@ VlnPlotGradient <- function(
     original_idents <- Seurat::Idents(SeuratObject)
     Seurat::Idents(SeuratObject) <- SeuratObject@meta.data[[group.by]]
   }
+  # Capture the identity labels for each cell
   cell_idents <- as.character(Seurat::Idents(SeuratObject))
 
   # ── 2. Compute per-identity gradient value ───────────────────────────────────────────────────────
   if (gradient == "nCells") {
+    # Special case: count cells per identity using dplyr
     ident_df <- data.frame(identity = cell_idents, stringsAsFactors = FALSE)
     gradient_values <- ident_df %>%
       dplyr::count(identity, name = "nCells") %>%
@@ -86,97 +90,150 @@ VlnPlotGradient <- function(
     gradient_label <- "nCells"
 
   } else {
+    # General case: use the mean of the feature across cells in each identity.
+    # Works for metadata columns and genes (Seurat::FetchData handles both).
     feat_data <- tryCatch(
       Seurat::FetchData(SeuratObject, vars = gradient),
       error = function(e) stop(paste0("Cannot fetch gradient feature '", gradient, "': ", e$message))
     )
-    gradient_values <- data.frame(
+    ident_df <- data.frame(
       identity     = cell_idents,
-      feature_val  = feat_data[[gradient]],
+      gradient_raw = feat_data[[1]],
       stringsAsFactors = FALSE
-    ) %>%
+    )
+    gradient_values <- ident_df %>%
       dplyr::group_by(identity) %>%
-      dplyr::summarise(gradient_val = mean(feature_val, na.rm = TRUE), .groups = "drop")
-    gradient_label <- gradient
+      dplyr::summarise(gradient_val = mean(gradient_raw, na.rm = TRUE), .groups = "drop")
+    gradient_label <- paste0("mean(", gradient, ")")
   }
 
-  identity_levels <- levels(Seurat::Idents(SeuratObject))
-  if (is.null(identity_levels)) identity_levels <- sort(unique(cell_idents))
-
+  # ── 2b. Order identities by gradient value descending ──────────────────────────────────────────
+  # Sort the gradient table so the identity with the highest gradient value comes
+  # first. The resulting order vector is used as the factor level order in ggplot,
+  # which controls the left-to-right position of violins on the x-axis.
   gradient_values <- gradient_values %>%
-    dplyr::filter(identity %in% identity_levels) %>%
-    dplyr::arrange(match(identity, identity_levels))
+    dplyr::arrange(dplyr::desc(gradient_val))
 
-  color_values <- setNames(gradient_values$gradient_val, gradient_values$identity)
+  # Ordered identity levels (high → low gradient, left → right on x-axis)
+  ordered_levels <- gradient_values$identity
 
-  # ── 3. Build per-feature violin plots ───────────────────────────────────────────────────────────
-  plots <- lapply(features, function(feat) {
-
-    p <- Seurat::VlnPlot(
-      SeuratObject,
-      features = feat,
-      pt.size  = pt.size,
-      cols     = scales::rescale(color_values[identity_levels])
-    )
-
-    if (inherits(p, "patchwork") || inherits(p, "gg")) {
-      layer_data <- p$data
-      if (is.null(layer_data)) {
-        p_inner <- p[[1]]
-      } else {
-        p_inner <- p
-      }
-    } else {
-      p_inner <- p
-    }
-
-    p_inner <- p_inner +
-      aes(fill = ident) +
-      scale_fill_manual(
-        values = if (!is.null(upper.limit)) {
-          scales::col_numeric(
-            palette = viridisLite::viridis(256, option = scale.colors),
-            domain  = c(lower.limit, upper.limit)
-          )(color_values[identity_levels])
-        } else {
-          scales::col_numeric(
-            palette = viridisLite::viridis(256, option = scale.colors),
-            domain  = range(color_values, na.rm = TRUE)
-          )(color_values[identity_levels])
-        },
-        name = gradient_label
-      ) +
-      theme(legend.position = "none")
-
-    p_inner
-  })
-
-  # ── 4. Assemble and add shared legend ─────────────────────────────────────────────────────────
-  grad_range <- if (!is.null(upper.limit)) c(lower.limit, upper.limit) else range(color_values, na.rm = TRUE)
-
-  legend_plot <- ggplot2::ggplot(
-    data.frame(x = 1, y = grad_range[1]:grad_range[2], fill = grad_range[1]:grad_range[2]),
-    ggplot2::aes(x = x, y = y, fill = fill)
-  ) +
-    ggplot2::geom_tile() +
-    ggplot2::scale_fill_viridis_c(name = gradient_label, option = scale.colors,
-                                   limits = grad_range) +
-    ggplot2::theme_void() +
-    ggplot2::theme(legend.position = "right")
-
-  legend_grob <- cowplot::get_legend(legend_plot)
-
-  ncol_val <- if (is.null(ncol)) length(features) else ncol
-
-  combined <- patchwork::wrap_plots(plots, ncol = ncol_val) +
-    patchwork::plot_layout(guides = "collect") &
-    ggplot2::theme(legend.position = "none")
-
-  final_plot <- cowplot::plot_grid(combined, legend_grob, rel_widths = c(1, 0.1))
-
+  # ── 3. Restore original identity if changed ─────────────────────────────────────────────────────
   if (!is.null(original_idents)) {
     Seurat::Idents(SeuratObject) <- original_idents
   }
 
-  return(final_plot)
+  # ── 4. Build per-feature violin plots ─────────────────────────────────────────────────────────────
+  # Fetch feature data for all requested features at once
+  feat_matrix <- tryCatch(
+    Seurat::FetchData(SeuratObject, vars = features),
+    error = function(e) stop(paste0("Cannot fetch one or more features: ", e$message))
+  )
+
+  # Global color scale limits (consistent across all panels)
+  if (!is.null(upper.limit)) {
+    scale_limits <- c(lower.limit, upper.limit)
+  } else {
+    scale_limits <- NULL  # let ggplot auto-scale
+  }
+
+  # Build one ggplot per feature
+  plot_list <- lapply(features, function(feat) {
+
+    # Per-cell data frame; join gradient values first as plain character,
+    # then re-apply the ordered factor AFTER the join to prevent left_join()
+    # from silently dropping the factor class and reverting to alphabetical order.
+    cell_df <- data.frame(
+      identity = cell_idents,
+      value    = feat_matrix[[feat]],
+      stringsAsFactors = FALSE
+    ) %>%
+      dplyr::left_join(gradient_values, by = "identity") %>%
+      dplyr::mutate(identity = factor(identity, levels = ordered_levels))
+
+    # ── ggplot2 violin, styled to resemble Seurat::VlnPlot() ─────────────────
+    p <- ggplot2::ggplot(cell_df,
+           ggplot2::aes(x = identity, y = value, fill = gradient_val)) +
+
+      # Violin body
+      ggplot2::geom_violin(
+        scale     = "width",
+        trim      = TRUE,
+        adjust    = 1,
+        linewidth = 0.3,
+        color     = "black"
+      ) +
+
+      # Jittered individual points (optional)
+      {
+        if (pt.size > 0) {
+          ggplot2::geom_jitter(
+            ggplot2::aes(color = gradient_val),
+            width  = 0.3,
+            size   = pt.size,
+            alpha  = 0.6,
+            show.legend = FALSE
+          )
+        }
+      } +
+
+      # Viridis gradient fill for violins
+      ggplot2::scale_fill_viridis_c(
+        name     = gradient_label,
+        option   = scale.colors,
+        limits   = scale_limits,
+        na.value = "grey70"
+      ) +
+
+      # Matching color scale for points
+      ggplot2::scale_color_viridis_c(
+        option = scale.colors,
+        limits = scale_limits,
+        guide  = "none"
+      ) +
+
+      # Seurat-like axis labels
+      ggplot2::labs(
+        title = feat,
+        x     = NULL,
+        y     = NULL
+      ) +
+
+      # Seurat-inspired theme
+      ggplot2::theme_classic(base_size = 11) +
+      ggplot2::theme(
+        # Title
+        plot.title         = ggplot2::element_text(
+          face = "bold", size = 11, hjust = 0.5
+        ),
+        # X-axis identity labels — rotated as in Seurat
+        axis.text.x        = ggplot2::element_text(
+          angle = 45, hjust = 1, vjust = 1, size = 9
+        ),
+        axis.text.y        = ggplot2::element_text(size = 9),
+        axis.title.y       = ggplot2::element_text(size = 9),
+        # Legend
+        legend.title       = ggplot2::element_text(size = 9),
+        legend.text        = ggplot2::element_text(size = 8),
+        legend.key.height  = ggplot2::unit(0.8, "cm"),
+        legend.key.width   = ggplot2::unit(0.25, "cm"),
+        # Panel
+        panel.grid.major.y = ggplot2::element_line(
+          color = "grey90", linewidth = 0.25
+        ),
+        panel.border       = ggplot2::element_blank(),
+        axis.line          = ggplot2::element_line(linewidth = 0.4)
+      )
+
+    return(p)
+  })
+
+  # ── 5. Combine panels using patchwork ──────────────────────────────────────────────────────────────────
+  # Share a single colour legend across all panels (collect_guides)
+  n_cols <- if (!is.null(ncol)) ncol else length(features)
+
+  combined <- patchwork::wrap_plots(plot_list, ncol = n_cols) +
+    patchwork::plot_layout(guides = "collect") &
+    ggplot2::theme(legend.position = "right")
+
+  return(combined)
 }
