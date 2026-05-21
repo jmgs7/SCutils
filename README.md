@@ -125,4 +125,4 @@ results <- scGSEAmarkers(
 
 ## License
 
-MIT © José Manuel García Sánchez
+MIT © José Manuel Gómez Silva
