@@ -1,0 +1,24 @@
+Package: SCutils
+Type: Package
+Title: Single-Cell RNA-seq Utility Functions
+Version: 0.1.0
+Authors@R: person("José Manuel", "García Sánchez", email = "", role = c("aut", "cre"))
+Description: A collection of utility functions for single-cell RNA-seq analysis,
+    including quality control metrics, visualization tools with gradient color
+    scales, and GSEA-based cluster annotation helpers. Built to complement
+    Seurat-based workflows.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Imports:
+    Seurat,
+    ggplot2,
+    dplyr,
+    patchwork,
+    fgsea,
+    BiocParallel,
+    tibble,
+    scales
+RoxygenNote: 7.3.2
+URL: https://github.com/jmgs7/SCutils
+BugReports: https://github.com/jmgs7/SCutils/issues
