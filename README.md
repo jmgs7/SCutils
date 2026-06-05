@@ -83,6 +83,37 @@ VlnPlotGradient(
 
 ---
 
+### `QCMetricsBoxplot(SeuratObject, entity_name, entity_type, ...)`
+Creates **boxplots** to visualize QC metrics (nFeature_RNA, nCount_RNA, percent.mt) for cells within specific entities. Individual cells are displayed as gradient-colored points, allowing rapid visual assessment of QC metric distributions by sample, batch, cluster, or other grouping variables.
+
+```r
+QCMetricsBoxplot(
+  SeuratObject,
+  entity_name = "orig.ident",
+  qc_metrics = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
+  scale.colors = "plasma",
+  pt.size = 1.5,
+  pt.alpha = 0.7
+)
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `entity_name` | — | Metadata column to group by (e.g., "orig.ident", "batch", "seurat_clusters") |
+| `entity_type` | `NULL` | If specified, filters to show only cells from this entity; if `NULL`, shows all |
+| `qc_metrics` | `c("nFeature_RNA", "nCount_RNA", "percent.mt")` | QC metrics to visualize |
+| `gradient_col` | `NULL` | Feature for point gradient coloring; if `NULL`, each metric colors by its own values |
+| `scale.colors` | `"viridis"` | Viridis palette (`"magma"`, `"inferno"`, `"plasma"`, etc.) |
+| `pt.size` | `1` | Size of points representing individual cells |
+| `pt.alpha` | `0.6` | Transparency of points (0-1) |
+| `fill_color` | `"lightblue"` | Boxplot fill color |
+| `outlier.size` | `1` | Size of boxplot outliers |
+| `upper.limit` | `NULL` | Upper clamp for gradient scale |
+| `lower.limit` | `0` | Lower clamp (only when `upper.limit` set) |
+| `ncol` | `NULL` | Number of columns in combined plot (default: 3) |
+
+---
+
 ### `scGSEAmarkers(cluster_markers, reference_markers, ...)`
 Runs **fgsea** for every cluster in a Seurat `FindAllMarkers()` output against a reference gene-set database. Useful for automated cluster annotation (e.g., using MSigDB C8).
 
