@@ -132,7 +132,7 @@ QCMetricsBoxplot(
 ---
 
 ### `scGSEAmarkers(cluster_markers, reference_markers, ...)`
-Runs **fgsea** for every cluster in a Seurat `FindAllMarkers()` output against a reference gene-set database. Useful for automated cluster annotation (e.g., using MSigDB C8).
+Runs **fgsea** for every cluster in a Seurat `FindAllMarkers()` output against a reference gene-set database. Useful for supporting cluster annotation (e.g., using MSigDB C8).
 
 ```r
 results <- scGSEAmarkers(
