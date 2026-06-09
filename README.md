@@ -83,13 +83,27 @@ VlnPlotGradient(
 
 ---
 
-### `QCMetricsBoxplot(SeuratObject, entity_name, entity_type, ...)`
-Creates **boxplots** to visualize QC metrics (nFeature_RNA, nCount_RNA, percent.mt) for cells within specific entities. Individual cells are displayed as gradient-colored points, allowing rapid visual assessment of QC metric distributions by sample, batch, cluster, or other grouping variables.
+### `QCMetricsBoxplot(SeuratObject, entity_type, entity_name, ...)`
+Creates **boxplots** to visualize QC metrics (nFeature_RNA, nCount_RNA, percent.mt) for cells within specific entities. **Outlier cells** (detected via the IQR method) are displayed as gradient-colored points, allowing rapid visual assessment of QC metric distributions by sample, batch, cluster, or other grouping variables.
 
 ```r
+# Visualize QC metrics across all samples
+QCMetricsBoxplot(
+  SeuratObject,
+  entity_type = "orig.ident"
+)
+
+# Visualize QC metrics for a single sample
 QCMetricsBoxplot(
   SeuratObject,
   entity_type = "orig.ident",
+  entity_name = "Sample_1"
+)
+
+# Customize colors and aesthetics
+QCMetricsBoxplot(
+  SeuratObject,
+  entity_type = "seurat_clusters",
   qc_metrics = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
   scale.colors = "plasma",
   pt.size = 1.5,
@@ -99,18 +113,21 @@ QCMetricsBoxplot(
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `entity_type` | — | Metadata column to group by (e.g., "orig.ident", "batch", "seurat_clusters") |
-| `entity_name` | `NULL` | If specified, filters to show only cells from this entity; if `NULL`, shows all |
+| `entity_type` | — | Metadata column to group cells by (e.g., `"orig.ident"`, `"batch"`, `"seurat_clusters"`) |
+| `entity_name` | `NULL` | If specified, filters the plot to show only cells from this entity; if `NULL`, shows all entities |
 | `qc_metrics` | `c("nFeature_RNA", "nCount_RNA", "percent.mt")` | QC metrics to visualize |
-| `gradient_col` | `NULL` | Feature for point gradient coloring; if `NULL`, each metric colors by its own values |
+| `gradient_col` | `NULL` | Metadata column/feature for point gradient coloring; if `NULL`, each metric colors by its own values |
 | `scale.colors` | `"viridis"` | Viridis palette (`"magma"`, `"inferno"`, `"plasma"`, etc.) |
-| `pt.size` | `1` | Size of points representing individual cells |
-| `pt.alpha` | `0.6` | Transparency of points (0-1) |
-| `fill_color` | `"lightblue"` | Boxplot fill color |
-| `outlier.size` | `1` | Size of boxplot outliers |
+| `lower.limit` | `0` | Lower clamp for gradient scale |
 | `upper.limit` | `NULL` | Upper clamp for gradient scale |
-| `lower.limit` | `0` | Lower clamp (only when `upper.limit` set) |
-| `ncol` | `NULL` | Number of columns in combined plot (default: 3) |
+| `pt.size` | `1` | Size of outlier points |
+| `pt.alpha` | `0.6` | Transparency of outlier points (0–1) |
+| `fill_color` | `"lightblue"` | Boxplot fill color |
+| `outlier.size` | `1` | Size of boxplot outlier markers |
+| `ncol` | `NULL` | Number of columns in the combined plot (default: 3) |
+| `gradient_legend` | `FALSE` | Whether to show the gradient color legend |
+
+> **Note:** Only statistical outliers (values outside 1.5 × IQR) are rendered as gradient-colored points. Non-outlier cells are not individually plotted.
 
 ---
 
