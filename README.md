@@ -89,7 +89,7 @@ Creates **boxplots** to visualize QC metrics (nFeature_RNA, nCount_RNA, percent.
 ```r
 QCMetricsBoxplot(
   SeuratObject,
-  entity_name = "orig.ident",
+  entity_type = "orig.ident",
   qc_metrics = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
   scale.colors = "plasma",
   pt.size = 1.5,
@@ -99,8 +99,8 @@ QCMetricsBoxplot(
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `entity_name` | — | Metadata column to group by (e.g., "orig.ident", "batch", "seurat_clusters") |
-| `entity_type` | `NULL` | If specified, filters to show only cells from this entity; if `NULL`, shows all |
+| `entity_type` | — | Metadata column to group by (e.g., "orig.ident", "batch", "seurat_clusters") |
+| `entity_name` | `NULL` | If specified, filters to show only cells from this entity; if `NULL`, shows all |
 | `qc_metrics` | `c("nFeature_RNA", "nCount_RNA", "percent.mt")` | QC metrics to visualize |
 | `gradient_col` | `NULL` | Feature for point gradient coloring; if `NULL`, each metric colors by its own values |
 | `scale.colors` | `"viridis"` | Viridis palette (`"magma"`, `"inferno"`, `"plasma"`, etc.) |
