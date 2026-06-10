@@ -16,6 +16,8 @@
 #' @param mc.cores Integer. Number of cores for `mclapply()` (default `4`).
 #' @param ensembl.to.symbol Logical. Whether to convert ENSEMBL IDs to gene symbols.
 #' @param species Character. Species for gene symbol conversion (default `"human"`).
+#' @param return.vector Logical. Whether to return a vector of matrices instead of a list. Defatul is `FALSE`.
+
 #'
 #' @return A named list of loaded/converted matrices (one per file).
 #'
@@ -38,7 +40,8 @@ BatchOpenH5 <- function(
   BP.data.dir = NULL,
   mc.cores = length(files),
   ensembl.to.symbol = TRUE,
-  species = "human"
+  species = "human",
+  return.vector = FALSE
 ) {
   if (is.null(BP.data.dir)) {
     BP.data.dir <- dirname(files[1])
@@ -74,5 +77,9 @@ BatchOpenH5 <- function(
   }
 
   names(data.list) <- gsub(".h5*", "", basename(files))
+
+  if (return.vector) {
+    data.list <- unlist(data.list, recursive = FALSE, use.names = TRUE)
+  }
   return(data.list)
 }
