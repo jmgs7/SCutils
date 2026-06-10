@@ -6,8 +6,8 @@
 \usage{
 QCMetricsBoxplot(
   SeuratObject,
-  entity_name,
-  entity_type = NULL,
+  entity_type,
+  entity_name = NULL,
   qc_metrics = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
   gradient_col = NULL,
   scale.colors = "viridis",
@@ -17,24 +17,25 @@ QCMetricsBoxplot(
   pt.alpha = 0.6,
   fill_color = "lightblue",
   outlier.size = 1,
-  ncol = NULL
+  ncol = NULL,
+  gradient_legend = FALSE
 )
 }
 \arguments{
 \item{SeuratObject}{A Seurat object.}
 
-\item{entity_name}{Character string. The name of the metadata column to group cells by 
+\item{entity_type}{Character string. The name of the metadata column to group cells by
 (e.g., "orig.ident", "batch", "seurat_clusters").}
 
-\item{entity_type}{Character string or NULL. If specified, filters the plot to show only 
-cells from this specific entity. If NULL (default), displays all entities in the 
+\item{entity_name}{Character string or NULL. If specified, filters the plot to show only
+cells from this specific entity. If NULL (default), displays all entities in the
 metadata column.}
 
-\item{qc_metrics}{Character vector. QC metrics to visualize. Default is 
+\item{qc_metrics}{Character vector. QC metrics to visualize. Default is
 `c("nFeature_RNA", "nCount_RNA", "percent.mt")`. Any metadata columns can be used.}
 
-\item{gradient_col}{Character string or NULL. Metadata column/feature to use for point 
-gradient coloring. If NULL (default), each QC metric is colored by its own values, 
+\item{gradient_col}{Character string or NULL. Metadata column/feature to use for point
+gradient coloring. If NULL (default), each QC metric is colored by its own values,
 creating a per-metric gradient where higher values appear in warmer colors.}
 
 \item{scale.colors}{Character string. Viridis palette to use for the gradient.
@@ -61,15 +62,17 @@ Set to NA to remove fill color.}
 
 \item{ncol}{Integer or NULL. Number of columns in the combined plot.
 If NULL (default), uses 3 columns for layout.}
+
+\item{gradient_legend}{Boolean. Whether to show legend for gradient coloring. Default is FALSE.}
 }
 \value{
 A \code{ggplot2} / \code{patchwork} object combining boxplots for each QC metric.
 }
 \description{
-`QCMetricsBoxplot()` creates boxplots to visualize the distribution of 
-  QC metrics (nFeature, nCount, percent.mt) for cells within a specific entity or 
-  across multiple entities. Individual cells are represented as points with colors 
-  reflecting the magnitude of each QC metric, allowing for rapid visual assessment 
+`QCMetricsBoxplot()` creates boxplots to visualize the distribution of
+  QC metrics (nFeature, nCount, percent.mt) for cells within a specific entity or
+  across multiple entities. Individual cells are represented as points with colors
+  reflecting the magnitude of each QC metric, allowing for rapid visual assessment
   of QC metric distributions by sample, batch, cluster, or other grouping variables.
 }
 \examples{
@@ -77,20 +80,20 @@ A \code{ggplot2} / \code{patchwork} object combining boxplots for each QC metric
 # Visualize QC metrics across all samples
 QCMetricsBoxplot(
   SeuratObject,
-  entity_name = "orig.ident"
+  entity_type = "orig.ident"
 )
 
 # Visualize QC metrics for a single sample
 QCMetricsBoxplot(
   SeuratObject,
-  entity_name = "orig.ident",
-  entity_type = "Sample_1"
+  entity_type = "orig.ident",
+  entity_name = "Sample_1"
 )
 
 # Customize colors and aesthetics
 QCMetricsBoxplot(
   SeuratObject,
-  entity_name = "seurat_clusters",
+  entity_type = "seurat_clusters",
   qc_metrics = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
   scale.colors = "plasma",
   pt.size = 1.5,
