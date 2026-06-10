@@ -14,6 +14,8 @@
 #' @param data.dir Character. Directory where the BP matrices will be saved
 #'   (without the `"_BP"` suffix). If `NULL`, uses the first file's path.
 #' @param mc.cores Integer. Number of cores for `mclapply()` (default `4`).
+#' @param ensembl.to.symbol Logical. Whether to convert ENSEMBL IDs to gene symbols.
+#' @param species Character. Species for gene symbol conversion (default `"human"`).
 #'
 #' @return A named list of loaded/converted matrices (one per file).
 #'
@@ -31,14 +33,23 @@
 #' @import BPCells
 #' @export
 
-BatchOpenH5 <- function(files, BP.data.dir = NULL, mc.cores = length(files)) {
+BatchOpenH5 <- function(
+  files,
+  BP.data.dir = NULL,
+  mc.cores = length(files),
+  ensembl.to.symbol = TRUE,
+  species = "human"
+) {
   if (is.null(BP.data.dir)) {
     BP.data.dir <- dirname(files[1])
   }
 
   process_one_file <- function(file) {
     open.path <- file
-    save.path <- file.path(BP.data.dir, paste0(gsub(".h5*", "", file), "_BP"))
+    save.path <- file.path(
+      BP.data.dir,
+      paste0(gsub(".h5*", "", basename(file)), "_BP")
+    )
 
     if (!dir.exists(save.path)) {
       data <- open_matrix_10x_hdf5(open.path)
@@ -46,7 +57,10 @@ BatchOpenH5 <- function(files, BP.data.dir = NULL, mc.cores = length(files)) {
     }
 
     mat <- open_matrix_dir(dir = save.path)
-    Azimuth:::ConvertEnsembleToSymbol(mat = mat, species = "human")
+    if (ensembl.to.symbol) {
+      mat <- Azimuth:::ConvertEnsembleToSymbol(mat = mat, species = species)
+    }
+    return(mat)
   }
 
   if (.Platform$OS.type == "windows") {
