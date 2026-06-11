@@ -18,7 +18,9 @@ Imports:
     fgsea,
     BiocParallel,
     tibble,
-    scales
+    scales,
+    BPCells,
+    Azimuth
 URL: https://github.com/jmgs7/SCutils
 BugReports: https://github.com/jmgs7/SCutils/issues
 Config/roxygen2/version: 8.0.0

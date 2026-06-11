@@ -20,5 +20,7 @@ that have a count > 0 in that cell. It is useful as a covariate in
 differential expression analyses. This function returns a vector of scaled CDRs.
 }
 \examples{
+\dontrun{
 SeuratObject <- CalculateCDR(SeuratObject)
+}
 }

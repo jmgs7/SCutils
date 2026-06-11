@@ -12,7 +12,7 @@
 #' On Windows, it falls back to `lapply()`.
 #'
 #' @param files Character vector. Filepaths (including the .h5* extension) to process.
-#' @param data.dir Character. Directory where the BP matrices will be saved
+#' @param BP.data.dir Character. Directory where the BP matrices will be saved
 #'   (without the `"_BP"` suffix). If `NULL`, uses the first file's path.
 #' @param platform Character. Platform of the input files, either `"10X"` or `"anndata"`. Default is `"10X"`.
 #' @param ensembl.to.symbol Logical. Whether to convert ENSEMBL IDs to gene symbols.

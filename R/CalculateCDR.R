@@ -9,16 +9,23 @@
 #' @param SeuratObject A Seurat object.
 #' @return The Seurat object with an additional "CDR" metadata slot with the calculated cdr.
 #' @examples
+#' \dontrun{
 #' SeuratObject <- CalculateCDR(SeuratObject)
+#' }
 #' @export
 #'
 CalculateCDR <- function(SeuratObject) {
-
-
-  mtry <- try(SeuratObject$CDR <- scale(colMeans(as.matrix(SeuratObject@assays$RNA@layers$counts) > 0)), silent = TRUE)
+  mtry <- try(
+    SeuratObject$CDR <- scale(colMeans(
+      as.matrix(SeuratObject@assays$RNA@layers$counts) > 0
+    )),
+    silent = TRUE
+  )
 
   if (inherits(mtry, "try-error")) {
-    SeuratObject$CDR <- scale(colMeans(as.matrix(SeuratObject@assays$RNA@counts) > 0))
+    SeuratObject$CDR <- scale(colMeans(
+      as.matrix(SeuratObject@assays$RNA@counts) > 0
+    ))
   }
 
   return(SeuratObject)

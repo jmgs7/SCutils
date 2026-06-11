@@ -2,6 +2,7 @@
 
 export(BatchOpenH5)
 export(CalculateCDR)
+export(CalculateQC)
 export(CellsHistoGradient)
 export(FeatureScatterGradient)
 export(QCMetricsBoxplot)

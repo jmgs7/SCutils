@@ -17,6 +17,9 @@ BatchOpenH5(
 \arguments{
 \item{files}{Character vector. Filepaths (including the .h5* extension) to process.}
 
+\item{BP.data.dir}{Character. Directory where the BP matrices will be saved
+(without the `"_BP"` suffix). If `NULL`, uses the first file's path.}
+
 \item{platform}{Character. Platform of the input files, either `"10X"` or `"anndata"`. Default is `"10X"`.}
 
 \item{ensembl.to.symbol}{Logical. Whether to convert ENSEMBL IDs to gene symbols.}
@@ -26,9 +29,6 @@ BatchOpenH5(
 \item{generate.metadata}{Logical. Whether to generate a basic metadata table with the procedence of the sample (default `FALSE`).}
 
 \item{mc.cores}{Integer. Number of cores for `mclapply()` (default is the number of files).}
-
-\item{data.dir}{Character. Directory where the BP matrices will be saved
-(without the `"_BP"` suffix). If `NULL`, uses the first file's path.}
 }
 \value{
 A named list of loaded/converted matrices (one per file).
