@@ -32,7 +32,7 @@
 #' }
 #'
 #' @importFrom parallel mclapply
-#' @importFrom Azimuth ConvertEnsembleToSymbol()
+#' @import Azimuth
 #' @import BPCells
 #' @export
 
