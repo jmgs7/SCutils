@@ -2,19 +2,33 @@
 % Please edit documentation in R/BatchOpenH5.R
 \name{BatchOpenH5}
 \alias{BatchOpenH5}
-\title{Batch-open multiple .h5ad files and convert features to gene symbols}
+\title{Batch-open multiple .h5ad files, generates the BP matrices and simple metadata, and converts features to gene symbols}
 \usage{
-BatchOpenH5(files.dir, files.set, data.dir = NULL, mc.cores = 2)
+BatchOpenH5(
+  files,
+  BP.data.dir = NULL,
+  platform = "10X",
+  ensembl.to.symbol = TRUE,
+  species = "human",
+  generate.metadata = FALSE,
+  mc.cores = length(files)
+)
 }
 \arguments{
-\item{files.dir}{Character. Directory containing the .h5ad files (absolute or relative).}
+\item{files}{Character vector. Filepaths (including the .h5* extension) to process.}
 
-\item{files.set}{Character vector. Filenames (including the .h5ad extension) to process.}
+\item{platform}{Character. Platform of the input files, either `"10X"` or `"anndata"`. Default is `"10X"`.}
+
+\item{ensembl.to.symbol}{Logical. Whether to convert ENSEMBL IDs to gene symbols.}
+
+\item{species}{Character. Species for gene symbol conversion (default `"human"`).}
+
+\item{generate.metadata}{Logical. Whether to generate a basic metadata table with the procedence of the sample (default `FALSE`).}
+
+\item{mc.cores}{Integer. Number of cores for `mclapply()` (default is the number of files).}
 
 \item{data.dir}{Character. Directory where the BP matrices will be saved
-(without the `"_BP"` suffix). If `NULL`, uses `files.dir`.}
-
-\item{mc.cores}{Integer. Number of cores for `mclapply()` (default `2`).}
+(without the `"_BP"` suffix). If `NULL`, uses the first file's path.}
 }
 \value{
 A named list of loaded/converted matrices (one per file).
@@ -25,7 +39,8 @@ For each file in `files.set` this function:
 - if a directory with suffix `"_BP"` doesn't exist it reads the HDF5 matrix with
   `open_matrix_10x_hdf5()` and writes the matrix directory using `write_matrix_dir()`,
 - loads the BP matrix directory with `open_matrix_dir()` and converts ENSEMBL IDs
-  to gene symbols via `Azimuth:::ConvertEnsembleToSymbol()`.
+  to gene symbols via `Azimuth:::ConvertEnsembleToSymbol()` if `ensembl.to.symbol` is `TRUE`, and
+- generates a basic metadata table with the procedence of the sample if `generate.metadata` is `TRUE`.
 }
 \details{
 Processing is parallelized with `parallel::mclapply()` on Unix-like systems.
@@ -34,8 +49,8 @@ On Windows, it falls back to `lapply()`.
 \examples{
 \dontrun{
 BatchOpenH5(
-  files.dir = "/path/to/h5ads",
-  files.set = c("sample1.h5ad", "sample2.h5ad"),
+  files = c("/path/to/h5ads/sample1.h5ad", "/path/to/h5ads/sample2.h5ad"),
+  data.dir = "/path/to/data",
   mc.cores = 4
 )
 }
