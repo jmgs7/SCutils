@@ -99,8 +99,9 @@ BatchOpenH5 <- function(
       function(sample) {
         cells <- colnames(data.list[[sample]])
         data.frame(
-          row.names = cells,
+          cell.tag = cells,
           sample.procedence = sample,
+          row.names = cells,
           stringsAsFactors = FALSE
         )
       },
@@ -108,7 +109,8 @@ BatchOpenH5 <- function(
     )
 
     metadata <- Reduce(rbind, meta.list)
-    return(data.list, metadata)
+    output <- list(data.list = data.list, metadata = metadata)
+    return(output)
   }
 
   return(data.list)
