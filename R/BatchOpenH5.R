@@ -32,7 +32,6 @@
 #' }
 #'
 #' @importFrom parallel mclapply
-#' @import Azimuth
 #' @import BPCells
 #' @export
 
@@ -77,7 +76,12 @@ BatchOpenH5 <- function(
 
     mat <- open_matrix_dir(dir = save.path)
     if (ensembl.to.symbol) {
-      mat <- Azimuth:::ConvertEnsembleToSymbol(mat = mat, species = species)
+      mat <- ConvertEnsembleToSymbol2(
+        # TODO: Integrate this functionality in this module for better performance, and remove redundant database downloading process.
+        mat = mat,
+        species = species,
+        mirror = "useast"
+      )
     }
     return(mat)
   }
