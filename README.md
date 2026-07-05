@@ -12,14 +12,15 @@ devtools::install_github("jmgs7/SCutils")
 ## Functions
 
 ### `BatchOpenH5(files, BP.data.dir, platform, ensembl.to.symbol, species, generate.metadata, mc.cores)`
-Batch-opens `.h5*` files, writes/loads BPCells matrix directories, optionally converts ENSEMBL IDs to gene symbols, and can generate sample provenance metadata. File processing is parallelized with `parallel::mclapply()` (Windows falls back to 1 core).
+Batch-opens `.h5*` files, writes/loads BPCells matrix directories, optionally converts ENSEMBL IDs to gene symbols or uses genes symbols if available in the h5 matrix data. Can generate sample provenance metadata. File processing is parallelized with `parallel::mclapply()` (Windows falls back to 1 core).
 
 ```r
 BatchOpenH5(
   files = c("/data/sample1.h5ad", "/data/sample2.h5ad"),
   BP.data.dir = "/data/BP",
-  platform = "anndata",
-  ensembl.to.symbol = TRUE,
+  platform = "10X",
+  use.names = TRUE,
+  ensembl.to.symbol = FALSE,
   species = "human",
   generate.metadata = TRUE,
   mc.cores = 4
@@ -31,7 +32,8 @@ BatchOpenH5(
 | `files` | — | Character vector of `.h5*` file paths |
 | `BP.data.dir` | `NULL` | Output directory for `*_BP` folders; defaults to first file directory |
 | `platform` | `"10X"` | Input format: `"10X"` or `"anndata"` |
-| `ensembl.to.symbol` | `TRUE` | Convert ENSEMBL IDs to symbols with Azimuth |
+| `use.names` | `TRUE` | Use gene symbols instead of IDs. Requires 10X object and names to be in the default /matrix/features/name directory |
+| `ensembl.to.symbol` | `FALSE` | Convert ENSEMBL IDs to symbols with Azimuth |
 | `species` | `"human"` | Species for ID conversion |
 | `generate.metadata` | `FALSE` | Return sample provenance metadata (`cell.tag`, `sample.procedence`) |
 | `mc.cores` | `length(files)` | Cores used by `mclapply()` |

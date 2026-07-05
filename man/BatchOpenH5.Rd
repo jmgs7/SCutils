@@ -8,7 +8,8 @@ BatchOpenH5(
   files,
   BP.data.dir = NULL,
   platform = "10X",
-  ensembl.to.symbol = TRUE,
+  use.names = TRUE,
+  ensembl.to.symbol = FALSE,
   species = "human",
   generate.metadata = FALSE,
   mc.cores = length(files)
@@ -22,7 +23,9 @@ BatchOpenH5(
 
 \item{platform}{Character. Platform of the input files, either `"10X"` or `"anndata"`. Default is `"10X"`.}
 
-\item{ensembl.to.symbol}{Logical. Whether to convert ENSEMBL IDs to gene symbols.}
+\item{use.names}{Logical. Whether to use the gene symbols rather the gene ids. WARNING: Only with 10X matrices. The gene names should be under the default /matrix/features/name directory of an 10X h5 file. Default is `TRUE`.}
+
+\item{ensembl.to.symbol}{Logical. Whether to convert ENSEMBL IDs to gene symbols. Won't work if use.names is `TRUE`. Default is `FALSE`.}
 
 \item{species}{Character. Species for gene symbol conversion (default `"human"`).}
 

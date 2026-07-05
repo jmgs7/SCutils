@@ -15,7 +15,8 @@
 #' @param BP.data.dir Character. Directory where the BP matrices will be saved
 #'   (without the `"_BP"` suffix). If `NULL`, uses the first file's path.
 #' @param platform Character. Platform of the input files, either `"10X"` or `"anndata"`. Default is `"10X"`.
-#' @param ensembl.to.symbol Logical. Whether to convert ENSEMBL IDs to gene symbols.
+#' @param use.names Logical. Whether to use the gene symbols rather the gene ids. WARNING: Only with 10X matrices. The gene names should be under the default /matrix/features/name directory of an 10X h5 file. Default is `TRUE`.
+#' @param ensembl.to.symbol Logical. Whether to convert ENSEMBL IDs to gene symbols. Won't work if use.names is `TRUE`. Default is `FALSE`.
 #' @param species Character. Species for gene symbol conversion (default `"human"`).
 #' @param generate.metadata Logical. Whether to generate a basic metadata table with the procedence of the sample (default `FALSE`).
 #' @param mc.cores Integer. Number of cores for `mclapply()` (default is the number of files).
@@ -32,6 +33,7 @@
 #' }
 #'
 #' @importFrom parallel mclapply
+#' @importFrom rhdf5 h5read
 #' @import BPCells
 #' @export
 
@@ -39,7 +41,8 @@ BatchOpenH5 <- function(
   files,
   BP.data.dir = NULL,
   platform = "10X",
-  ensembl.to.symbol = TRUE,
+  use.names = TRUE,
+  ensembl.to.symbol = FALSE,
   species = "human",
   generate.metadata = FALSE,
   mc.cores = length(files)
@@ -55,7 +58,13 @@ BatchOpenH5 <- function(
   }
 
   # Internal function to process a single file which will be parallelized with mclapply
-  process_one_file <- function(file, platform) {
+  process_one_file <- function(
+    file,
+    platform,
+    use.names,
+    ensembl.to.symbol,
+    species
+  ) {
     open.path <- file
     save.path <- file.path(
       BP.data.dir,
@@ -64,24 +73,41 @@ BatchOpenH5 <- function(
 
     if (!dir.exists(save.path)) {
       if (platform == '10X') {
+        message(paste("Processing 10X file:", open.path))
         data <- open_matrix_10x_hdf5(open.path)
+        message(paste("Loaded 10X file:", open.path))
+        if (use.names) {
+          feature.names <- rhdf5::h5read(open.path, "/matrix/features/name")
+          message(paste("Changed gene names for 10X file:", open.path))
+          rownames(data) <- feature.names
+        }
         write_matrix_dir(mat = data, dir = save.path)
+        message(paste("Processed 10X file:", open.path))
       } else if (platform == 'anndata') {
+        message(paste("Processing anndata file:", open.path))
         data <- open_matrix_anndata_hdf5(open.path)
         write_matrix_dir(mat = data, dir = save.path)
+        message(paste("Processed anndata file:", open.path))
       } else {
         stop("Unsupported platform. Please specify '10X' or 'anndata'.")
       }
     }
 
     mat <- open_matrix_dir(dir = save.path)
-    if (ensembl.to.symbol) {
+    if (ensembl.to.symbol && !use.names) {
+      message(paste(
+        "Converting ENSEMBL IDs to gene symbols for file:",
+        save.path
+      ))
       mat <- ConvertEnsembleToSymbol2(
-        # TODO: Integrate this functionality in this module for better performance, and remove redundant database downloading process.
         mat = mat,
         species = species,
         mirror = "useast"
       )
+      message(paste(
+        "Converted ENSEMBL IDs to gene symbols for file:",
+        save.path
+      ))
     }
     return(mat)
   }
@@ -91,6 +117,9 @@ BatchOpenH5 <- function(
     files,
     process_one_file,
     platform = platform,
+    use.names = use.names,
+    ensembl.to.symbol = ensembl.to.symbol,
+    species = species,
     mc.cores = mc.cores
   )
   # Set the names of the list to the base names of the files without the .h5* extension
