@@ -219,4 +219,4 @@ results <- scGSEAmarkers(
 
 ## License
 
-MIT © José Manuel Gómez Silva
+GPLv3 © José Manuel Gómez Silva
