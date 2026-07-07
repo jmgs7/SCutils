@@ -3,7 +3,7 @@
 #' For each file in `files.set` this function:
 #' - constructs the full path using `files.dir`,
 #' - if a directory with suffix `"_BP"` doesn't exist it reads the HDF5 matrix with
-#'   `open_matrix_10x_hdf5()` and writes the matrix directory using `write_matrix_dir()`,
+#'   `open_matrix_10x/anndata_hdf5()` and writes the matrix directory using `write_matrix_dir()`,
 #' - loads the BP matrix directory with `open_matrix_dir()` and converts ENSEMBL IDs
 #'   to gene symbols via `Azimuth:::ConvertEnsembleToSymbol()` if `ensembl.to.symbol` is `TRUE`, and
 #' - generates a basic metadata table with the procedence of the sample if `generate.metadata` is `TRUE`.
@@ -14,6 +14,7 @@
 #' @param files Character vector. Filepaths (including the .h5* extension) to process.
 #' @param BP.data.dir Character. Directory where the BP matrices will be saved
 #'   (without the `"_BP"` suffix). If `NULL`, uses the first file's path.
+#' @param relative Character. If `TRUE`, the paths in the matrix metadata will be relative to `BP.data.dir` (`./basename(BP.data.dir)/matrix_folder`, so the BP matrices folder is portable. Default is `TRUE`. NOTE: The resulting folder must be in the working directory for Seurat to find it.
 #' @param platform Character. Platform of the input files, either `"10X"` or `"anndata"`. Default is `"10X"`.
 #' @param use.names Logical. Whether to use the gene symbols rather the gene ids. WARNING: Only with 10X matrices. The gene names should be under the default /matrix/features/name directory of an 10X h5 file. Default is `TRUE`.
 #' @param ensembl.to.symbol Logical. Whether to convert ENSEMBL IDs to gene symbols. Won't work if use.names is `TRUE`. Default is `FALSE`.
@@ -39,6 +40,7 @@
 
 BatchOpenH5 <- function(
   files,
+  relative = TRUE,
   BP.data.dir = NULL,
   platform = "10X",
   use.names = TRUE,
@@ -49,7 +51,7 @@ BatchOpenH5 <- function(
 ) {
   # Use the directory of the first file if BP.data.dir is not provided
   if (is.null(BP.data.dir)) {
-    BP.data.dir <- dirname(files[1])
+    BP.data.dir <- dirname(files[[1]])
   }
 
   # Windows does not allow parallel processing with mclapply, so we set mc.cores to 1
@@ -60,6 +62,8 @@ BatchOpenH5 <- function(
   # Internal function to process a single file which will be parallelized with mclapply
   process_one_file <- function(
     file,
+    BP.data.dir,
+    relative,
     platform,
     use.names,
     ensembl.to.symbol,
@@ -75,25 +79,38 @@ BatchOpenH5 <- function(
       if (platform == '10X') {
         message(paste("Processing 10X file:", open.path))
         data <- open_matrix_10x_hdf5(open.path)
-        message(paste("Loaded 10X file:", open.path))
         if (use.names) {
           feature.names <- rhdf5::h5read(open.path, "/matrix/features/name")
           message(paste("Changed gene names for 10X file:", open.path))
           rownames(data) <- feature.names
         }
-        write_matrix_dir(mat = data, dir = save.path)
-        message(paste("Processed 10X file:", open.path))
       } else if (platform == 'anndata') {
         message(paste("Processing anndata file:", open.path))
         data <- open_matrix_anndata_hdf5(open.path)
-        write_matrix_dir(mat = data, dir = save.path)
-        message(paste("Processed anndata file:", open.path))
       } else {
         stop("Unsupported platform. Please specify '10X' or 'anndata'.")
       }
+      write_matrix_dir(mat = data, dir = save.path)
     }
 
     mat <- open_matrix_dir(dir = save.path)
+    message(paste("Loaded matrix file:", open.path))
+
+    if (relative) {
+      relative.path <- file.path(
+        ".",
+        basename(BP.data.dir),
+        basename(save.path)
+      )
+      mat@dir <- relative.path
+      message(paste0(
+        "Set relative matrix directory to: ",
+        mat@dir,
+        " for file: ",
+        open.path
+      ))
+    }
+
     if (ensembl.to.symbol && !use.names) {
       message(paste(
         "Converting ENSEMBL IDs to gene symbols for file:",
@@ -116,6 +133,8 @@ BatchOpenH5 <- function(
   data.list <- parallel::mclapply(
     files,
     process_one_file,
+    BP.data.dir = BP.data.dir,
+    relative = relative,
     platform = platform,
     use.names = use.names,
     ensembl.to.symbol = ensembl.to.symbol,
