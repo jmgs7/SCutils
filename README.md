@@ -11,12 +11,13 @@ devtools::install_github("jmgs7/SCutils")
 
 ## Functions
 
-### `BatchOpenH5(files, BP.data.dir, platform, ensembl.to.symbol, species, generate.metadata, mc.cores)`
-Batch-opens `.h5*` files, writes/loads BPCells matrix directories, optionally converts ENSEMBL IDs to gene symbols or uses genes symbols if available in the h5 matrix data. Can generate sample provenance metadata. File processing is parallelized with `parallel::mclapply()` (Windows falls back to 1 core).
+### `BatchOpenH5(files, relative, BP.data.dir, platform, use.names, ensembl.to.symbol, species, generate.metadata, mc.cores)`
+Batch-opens `.h5` single-cell matrices, writes/loads BPCells matrix directories (`*_BP`), supports both 10X and AnnData HDF5 inputs, and can optionally convert ENSEMBL IDs to gene symbols. It can also generate per-cell sample provenance metadata. Processing uses `parallel::mclapply()` (on Windows, cores are forced to 1).
 
 ```r
 BatchOpenH5(
-  files = c("/data/sample1.h5ad", "/data/sample2.h5ad"),
+  files = c("/data/sample1.h5", "/data/sample2.h5"),
+  relative = TRUE,
   BP.data.dir = "/data/BP",
   platform = "10X",
   use.names = TRUE,
@@ -29,13 +30,14 @@ BatchOpenH5(
 
 | Parameter | Default | Description |
 |---|---|---|
-| `files` | — | Character vector of `.h5*` file paths |
-| `BP.data.dir` | `NULL` | Output directory for `*_BP` folders; defaults to first file directory |
+| `files` | — | Character vector of input `.h5` file paths |
+| `relative` | `TRUE` | Store matrix directories as relative paths in each matrix object (`./<basename(BP.data.dir)>/<matrix_dir>`) |
+| `BP.data.dir` | `NULL` | Output directory for `*_BP` folders; defaults to `dirname(files[[1]])` |
 | `platform` | `"10X"` | Input format: `"10X"` or `"anndata"` |
-| `use.names` | `TRUE` | Use gene symbols instead of IDs. Requires 10X object and names to be in the default /matrix/features/name directory |
-| `ensembl.to.symbol` | `FALSE` | Convert ENSEMBL IDs to symbols with Azimuth |
-| `species` | `"human"` | Species for ID conversion |
-| `generate.metadata` | `FALSE` | Return sample provenance metadata (`cell.tag`, `sample.procedence`) |
+| `use.names` | `TRUE` | For 10X only: replace feature IDs with `/matrix/features/name` |
+| `ensembl.to.symbol` | `FALSE` | Convert ENSEMBL IDs to symbols with `ConvertEnsembleToSymbol2()` (applied only when `use.names = FALSE`) |
+| `species` | `"human"` | Species passed to symbol conversion |
+| `generate.metadata` | `FALSE` | If `TRUE`, returns `data.list` plus metadata (`cell.tag`, `sample.procedence`) |
 | `mc.cores` | `length(files)` | Cores used by `mclapply()` |
 
 ---
