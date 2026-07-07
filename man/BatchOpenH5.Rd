@@ -2,10 +2,11 @@
 % Please edit documentation in R/BatchOpenH5.R
 \name{BatchOpenH5}
 \alias{BatchOpenH5}
-\title{Batch-open multiple .h5ad files, generates the BP matrices and simple metadata, and converts features to gene symbols}
+\title{Batch-open HDF5 single-cell matrices into BPCells format}
 \usage{
 BatchOpenH5(
   files,
+  relative = TRUE,
   BP.data.dir = NULL,
   platform = "10X",
   use.names = TRUE,
@@ -16,45 +17,71 @@ BatchOpenH5(
 )
 }
 \arguments{
-\item{files}{Character vector. Filepaths (including the .h5* extension) to process.}
+\item{files}{Character vector of input `.h5` file paths.}
 
-\item{BP.data.dir}{Character. Directory where the BP matrices will be saved
-(without the `"_BP"` suffix). If `NULL`, uses the first file's path.}
+\item{relative}{Logical; if `TRUE`, store matrix directory paths as
+`./<basename(BP.data.dir)>/<matrix_dir>` in each matrix object's `@dir` slot.
+This is useful for portability if the BP directory is available from the
+working directory. Default is `TRUE`.}
 
-\item{platform}{Character. Platform of the input files, either `"10X"` or `"anndata"`. Default is `"10X"`.}
+\item{BP.data.dir}{Character scalar directory where `*_BP` matrix folders are
+created. If `NULL`, uses `dirname(files[[1]])`.}
 
-\item{use.names}{Logical. Whether to use the gene symbols rather the gene ids. WARNING: Only with 10X matrices. The gene names should be under the default /matrix/features/name directory of an 10X h5 file. Default is `TRUE`.}
+\item{platform}{Character scalar, either `"10X"` or `"anndata"`. Default is
+`"10X"`.}
 
-\item{ensembl.to.symbol}{Logical. Whether to convert ENSEMBL IDs to gene symbols. Won't work if use.names is `TRUE`. Default is `FALSE`.}
+\item{use.names}{Logical; only used for `platform = "10X"`. If `TRUE`, replaces
+row names with `/matrix/features/name` from the HDF5 file. Default is `TRUE`.}
 
-\item{species}{Character. Species for gene symbol conversion (default `"human"`).}
+\item{ensembl.to.symbol}{Logical; if `TRUE` and `use.names = FALSE`, converts
+ENSEMBL IDs to gene symbols with `ConvertEnsembleToSymbol2()`. Default is
+`FALSE`.}
 
-\item{generate.metadata}{Logical. Whether to generate a basic metadata table with the procedence of the sample (default `FALSE`).}
+\item{species}{Character scalar species passed to `ConvertEnsembleToSymbol2()`.
+Default is `"human"`.}
 
-\item{mc.cores}{Integer. Number of cores for `mclapply()` (default is the number of files).}
+\item{generate.metadata}{Logical; if `TRUE`, also returns a per-cell metadata
+table with `cell.tag` and `sample.procedence`. Default is `FALSE`.}
+
+\item{mc.cores}{Integer number of cores for `mclapply()`. Default is
+`length(files)` (or 1 on Windows).}
 }
 \value{
-A named list of loaded/converted matrices (one per file).
+If `generate.metadata = FALSE`, a named list of BPCells matrices. Names
+  are derived from input basenames without `.h5*` suffix.
+  If `generate.metadata = TRUE`, a list with:
+  - `data.list`: the named matrix list
+  - `metadata`: a `data.frame` with per-cell sample provenance.
 }
 \description{
-For each file in `files.set` this function:
-- constructs the full path using `files.dir`,
-- if a directory with suffix `"_BP"` doesn't exist it reads the HDF5 matrix with
-  `open_matrix_10x_hdf5()` and writes the matrix directory using `write_matrix_dir()`,
-- loads the BP matrix directory with `open_matrix_dir()` and converts ENSEMBL IDs
-  to gene symbols via `Azimuth:::ConvertEnsembleToSymbol()` if `ensembl.to.symbol` is `TRUE`, and
-- generates a basic metadata table with the procedence of the sample if `generate.metadata` is `TRUE`.
+For each file in `files`, this function:
+- creates a BPCells matrix directory with `"_BP"` suffix in `BP.data.dir`
+  (if it does not already exist),
+- reads the matrix from either 10X HDF5 (`platform = "10X"`) or AnnData HDF5
+  (`platform = "anndata"`),
+- optionally replaces 10X feature IDs with `/matrix/features/name` when
+  `use.names = TRUE`,
+- reopens the saved BPCells matrix directory,
+- optionally rewrites `mat@dir` to a portable relative path when
+  `relative = TRUE`, and
+- optionally converts ENSEMBL IDs to symbols with `ConvertEnsembleToSymbol2()`
+  when `ensembl.to.symbol = TRUE` and `use.names = FALSE`.
 }
 \details{
-Processing is parallelized with `parallel::mclapply()` on Unix-like systems.
-On Windows, it falls back to `lapply()`.
+Processing uses `parallel::mclapply()`. On Windows, `mc.cores` is forced to 1.
 }
 \examples{
 \dontrun{
-BatchOpenH5(
-  files = c("/path/to/h5ads/sample1.h5ad", "/path/to/h5ads/sample2.h5ad"),
-  data.dir = "/path/to/data",
-  mc.cores = 4
+mats <- BatchOpenH5(
+  files = c("/path/to/sample1.h5", "/path/to/sample2.h5"),
+  BP.data.dir = "/path/to/bp_matrices",
+  platform = "10X",
+  mc.cores = 2
+)
+
+out <- BatchOpenH5(
+  files = c("/path/to/sample1.h5"),
+  generate.metadata = TRUE
 )
 }
 
