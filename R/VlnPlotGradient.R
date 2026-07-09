@@ -23,7 +23,7 @@
 #' @param upper.limit Numeric or NULL. Upper limit of the gradient scale.
 #'   When \code{NULL} (default), limits are set automatically.
 #' @param pt.size Numeric. Size of the jittered points overlaid on the violins.
-#'   Set to \code{0} to hide points. Default is \code{0.1}.
+#'   Default is \code{0} (hide points).
 #' @param ncol Integer or NULL. Number of columns in the combined plot.
 #'   If NULL, Seurat's default (number of features) is used.
 #'
@@ -62,7 +62,7 @@ VlnPlotGradient <- function(
     scale.colors = "viridis",
     lower.limit  = 0,
     upper.limit  = NULL,
-    pt.size      = 0.1,
+    pt.size      = 0,
     ncol         = NULL
 ) {
 
