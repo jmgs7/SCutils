@@ -83,19 +83,19 @@
 #' @importFrom future.apply future_lapply
 #' @export
 FeatureDensityPlot <- function(
-    SeuratObject,
-    features,
-    group.by = "active.ident",
-    split.plot = TRUE,
-    scale.colors = "viridis",
-    ncol = NULL,
-    vline = NULL,
-    plot.median = TRUE,
-    plot.title = NULL,
-    nmad = 2,
-    alpha = 0.3,
-    pt.size = 0,
-    mc.cores = NULL
+  SeuratObject,
+  features,
+  group.by = "active.ident",
+  split.plot = TRUE,
+  scale.colors = "viridis",
+  ncol = NULL,
+  vline = NULL,
+  plot.median = TRUE,
+  plot.title = NULL,
+  nmad = 2,
+  alpha = 0.3,
+  pt.size = 0,
+  mc.cores = NULL
 ) {
   # ─────────────────────────────────────────────────────────────────────────────
   # 1) Input validation
@@ -112,15 +112,28 @@ FeatureDensityPlot <- function(
     stop("'split.plot' must be a single logical value.")
   }
 
-  if (!is.logical(plot.median) || length(plot.median) != 1 || is.na(plot.median)) {
+  if (
+    !is.logical(plot.median) || length(plot.median) != 1 || is.na(plot.median)
+  ) {
     stop("'plot.median' must be a single logical value.")
   }
 
-  if (!is.numeric(alpha) || length(alpha) != 1 || is.na(alpha) || alpha < 0 || alpha > 1) {
+  if (
+    !is.numeric(alpha) ||
+      length(alpha) != 1 ||
+      is.na(alpha) ||
+      alpha < 0 ||
+      alpha > 1
+  ) {
     stop("'alpha' must be a single numeric value between 0 and 1.")
   }
 
-  if (!is.numeric(pt.size) || length(pt.size) != 1 || is.na(pt.size) || pt.size < 0) {
+  if (
+    !is.numeric(pt.size) ||
+      length(pt.size) != 1 ||
+      is.na(pt.size) ||
+      pt.size < 0
+  ) {
     stop("'pt.size' must be a single non-negative numeric value.")
   }
 
@@ -129,7 +142,12 @@ FeatureDensityPlot <- function(
   }
 
   if (!is.null(mc.cores)) {
-    if (!is.numeric(mc.cores) || length(mc.cores) != 1 || is.na(mc.cores) || mc.cores < 1) {
+    if (
+      !is.numeric(mc.cores) ||
+        length(mc.cores) != 1 ||
+        is.na(mc.cores) ||
+        mc.cores < 1
+    ) {
       stop("'mc.cores' must be NULL or a positive integer.")
     }
     mc.cores <- as.integer(mc.cores)
@@ -148,11 +166,15 @@ FeatureDensityPlot <- function(
   if (!is.null(vline)) {
     if (is.character(vline)) {
       if (length(vline) != 1 || !tolower(vline) %in% valid_vline_values) {
-        stop("'vline' must be one of: NULL, 'mean', 'median', 'upper', 'lower', 'both', or a numeric value.")
+        stop(
+          "'vline' must be one of: NULL, 'mean', 'median', 'upper', 'lower', 'both', or a numeric value."
+        )
       }
       vline <- tolower(vline)
     } else if (!is.numeric(vline) || length(vline) != 1 || is.na(vline)) {
-      stop("'vline' must be one of: NULL, 'mean', 'median', 'upper', 'lower', 'both', or a numeric value.")
+      stop(
+        "'vline' must be one of: NULL, 'mean', 'median', 'upper', 'lower', 'both', or a numeric value."
+      )
     }
   }
 
@@ -182,7 +204,11 @@ FeatureDensityPlot <- function(
       group_label <- "active.ident"
     } else {
       if (!group.by %in% colnames(metadata_df)) {
-        stop(paste0("'group.by' column '", group.by, "' not found in SeuratObject@meta.data."))
+        stop(paste0(
+          "'group.by' column '",
+          group.by,
+          "' not found in SeuratObject@meta.data."
+        ))
       }
       group_values <- as.character(metadata_df[[group.by]])
       group_label <- group.by
@@ -198,7 +224,9 @@ FeatureDensityPlot <- function(
 
   for (feature_name in features) {
     if (!is.numeric(plot_data[[feature_name]])) {
-      suppressWarnings(plot_data[[feature_name]] <- as.numeric(plot_data[[feature_name]]))
+      suppressWarnings(
+        plot_data[[feature_name]] <- as.numeric(plot_data[[feature_name]])
+      )
     }
   }
 
@@ -254,16 +282,25 @@ FeatureDensityPlot <- function(
     }
 
     if (vline_spec == "upper") {
-      return(data.frame(xintercept = median_value + nmad_value * mad_value, stringsAsFactors = FALSE))
+      return(data.frame(
+        xintercept = median_value + nmad_value * mad_value,
+        stringsAsFactors = FALSE
+      ))
     }
 
     if (vline_spec == "lower") {
-      return(data.frame(xintercept = median_value - nmad_value * mad_value, stringsAsFactors = FALSE))
+      return(data.frame(
+        xintercept = median_value - nmad_value * mad_value,
+        stringsAsFactors = FALSE
+      ))
     }
 
     if (vline_spec == "both") {
       return(data.frame(
-        xintercept = c(median_value - nmad_value * mad_value, median_value + nmad_value * mad_value),
+        xintercept = c(
+          median_value - nmad_value * mad_value,
+          median_value + nmad_value * mad_value
+        ),
         stringsAsFactors = FALSE
       ))
     }
@@ -276,7 +313,10 @@ FeatureDensityPlot <- function(
     if (length(values) == 0) {
       return(data.frame(xintercept = numeric(0), stringsAsFactors = FALSE))
     }
-    return(data.frame(xintercept = stats::median(values), stringsAsFactors = FALSE))
+    return(data.frame(
+      xintercept = stats::median(values),
+      stringsAsFactors = FALSE
+    ))
   }
 
   BuildSingleDensityPanel <- function(feature_df, x_label, panel_title) {
@@ -284,32 +324,35 @@ FeatureDensityPlot <- function(
       ggplot2::geom_density(fill = "lightblue", alpha = alpha, color = "black")
 
     if (pt.size > 0) {
-      current_plot <- current_plot + ggplot2::geom_rug(sides = "b", linewidth = pt.size, alpha = 0.35)
+      current_plot <- current_plot +
+        ggplot2::geom_rug(sides = "b", linewidth = pt.size, alpha = 0.35)
     }
 
     vline_df <- ComputeVlinePositions(feature_df$value, vline, nmad)
     if (nrow(vline_df) > 0) {
-      current_plot <- current_plot + ggplot2::geom_vline(
-        data = vline_df,
-        ggplot2::aes(xintercept = xintercept),
-        color = "red",
-        linetype = "dashed",
-        linewidth = 0.6,
-        show.legend = FALSE
-      )
+      current_plot <- current_plot +
+        ggplot2::geom_vline(
+          data = vline_df,
+          ggplot2::aes(xintercept = xintercept),
+          color = "red",
+          linetype = "dashed",
+          linewidth = 0.6,
+          show.legend = FALSE
+        )
     }
 
     if (plot.median) {
       median_df <- ComputeMedianPositions(feature_df$value)
       if (nrow(median_df) > 0) {
-        current_plot <- current_plot + ggplot2::geom_vline(
-          data = median_df,
-          ggplot2::aes(xintercept = xintercept),
-          color = "black",
-          linetype = "dashed",
-          linewidth = 0.7,
-          show.legend = FALSE
-        )
+        current_plot <- current_plot +
+          ggplot2::geom_vline(
+            data = median_df,
+            ggplot2::aes(xintercept = xintercept),
+            color = "black",
+            linetype = "dashed",
+            linewidth = 0.7,
+            show.legend = FALSE
+          )
       }
     }
 
@@ -352,7 +395,11 @@ FeatureDensityPlot <- function(
       feature_df <- feature_df[!is.na(feature_df$value), , drop = FALSE]
 
       if (nrow(feature_df) == 0) {
-        stop(paste0("Feature '", feature_name, "' has no non-missing numeric values to plot."))
+        stop(paste0(
+          "Feature '",
+          feature_name,
+          "' has no non-missing numeric values to plot."
+        ))
       }
 
       if (!has_grouping) {
@@ -375,47 +422,55 @@ FeatureDensityPlot <- function(
           ggplot2::geom_density(alpha = alpha)
 
         if (pt.size > 0) {
-          current_plot <- current_plot + ggplot2::geom_rug(
-            ggplot2::aes(color = .group),
-            sides = "b",
-            linewidth = pt.size,
-            alpha = 0.35,
-            show.legend = FALSE
-          )
+          current_plot <- current_plot +
+            ggplot2::geom_rug(
+              ggplot2::aes(color = .group),
+              sides = "b",
+              linewidth = pt.size,
+              alpha = 0.35,
+              show.legend = FALSE
+            )
         }
 
         if (!is.null(vline)) {
           vline_df <- feature_df |>
             dplyr::group_by(.group) |>
-            dplyr::group_modify(~ComputeVlinePositions(.x$value, vline, nmad)) |>
+            dplyr::group_modify(
+              ~ ComputeVlinePositions(.x$value, vline, nmad)
+            ) |>
             dplyr::ungroup()
 
           if (nrow(vline_df) > 0) {
-            current_plot <- current_plot + ggplot2::geom_vline(
-              data = vline_df,
-              ggplot2::aes(xintercept = xintercept, group = .group),
-              color = "red",
-              linetype = "dashed",
-              linewidth = 0.55,
-              show.legend = FALSE
-            )
+            current_plot <- current_plot +
+              ggplot2::geom_vline(
+                data = vline_df,
+                ggplot2::aes(xintercept = xintercept, group = .group),
+                color = "red",
+                linetype = "dashed",
+                linewidth = 0.55,
+                show.legend = FALSE
+              )
           }
         }
 
         if (plot.median) {
           median_df <- feature_df |>
             dplyr::group_by(.group) |>
-            dplyr::summarise(xintercept = stats::median(value, na.rm = TRUE), .groups = "drop")
+            dplyr::summarise(
+              xintercept = stats::median(value, na.rm = TRUE),
+              .groups = "drop"
+            )
 
           if (nrow(median_df) > 0) {
-            current_plot <- current_plot + ggplot2::geom_vline(
-              data = median_df,
-              ggplot2::aes(xintercept = xintercept, group = .group),
-              color = "black",
-              linetype = "dashed",
-              linewidth = 0.65,
-              show.legend = FALSE
-            )
+            current_plot <- current_plot +
+              ggplot2::geom_vline(
+                data = median_df,
+                ggplot2::aes(xintercept = xintercept, group = .group),
+                color = "black",
+                linetype = "dashed",
+                linewidth = 0.65,
+                show.legend = FALSE
+              )
           }
         }
 
@@ -423,10 +478,20 @@ FeatureDensityPlot <- function(
           feature_id = feature_id,
           group_id = NA_integer_,
           plot = current_plot +
-            ggplot2::scale_color_viridis_d(option = scale.colors, name = group_label) +
-            ggplot2::scale_fill_viridis_d(option = scale.colors, name = group_label) +
+            ggplot2::scale_color_viridis_d(
+              option = scale.colors,
+              name = group_label
+            ) +
+            ggplot2::scale_fill_viridis_d(
+              option = scale.colors,
+              name = group_label
+            ) +
             ggplot2::theme_bw() +
-            ggplot2::labs(title = feature_title, x = feature_name, y = "Density") +
+            ggplot2::labs(
+              title = feature_title,
+              x = feature_name,
+              y = "Density"
+            ) +
             ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
         ))
       }
@@ -446,7 +511,7 @@ FeatureDensityPlot <- function(
       ))
     },
     future.seed = TRUE,
-    future.scheduling = 2
+    future.scheduling = 1
   )
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -456,14 +521,29 @@ FeatureDensityPlot <- function(
 
   for (feature_id in seq_along(features)) {
     feature_title <- feature_titles[[feature_id]]
-    feature_results <- task_results[vapply(task_results, function(item) item$feature_id == feature_id, logical(1))]
+    feature_results <- task_results[vapply(
+      task_results,
+      function(item) item$feature_id == feature_id,
+      logical(1)
+    )]
 
     if (has_grouping && split.plot) {
-      ordered_results <- feature_results[order(vapply(feature_results, function(item) item$group_id, integer(1)))]
+      ordered_results <- feature_results[order(vapply(
+        feature_results,
+        function(item) item$group_id,
+        integer(1)
+      ))]
       group_plots <- lapply(ordered_results, function(item) item$plot)
-      ncol_groups <- if (!is.null(ncol)) ncol else ceiling(sqrt(length(group_plots)))
+      ncol_groups <- if (!is.null(ncol)) {
+        ncol
+      } else {
+        ceiling(sqrt(length(group_plots)))
+      }
 
-      feature_plots[[feature_id]] <- patchwork::wrap_plots(group_plots, ncol = ncol_groups) +
+      feature_plots[[feature_id]] <- patchwork::wrap_plots(
+        group_plots,
+        ncol = ncol_groups
+      ) +
         patchwork::plot_annotation(
           title = feature_title,
           theme = ggplot2::theme(
