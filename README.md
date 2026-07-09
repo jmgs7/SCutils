@@ -139,12 +139,10 @@ VlnPlotGradient(
 
 ---
 
-### `FeatureDensityPlot(SeuratObject, features, group.by, split.plot, scale.colors, ncol, vline, plot.median, plot.title, nmad, alpha, pt.size, mc.cores)`
-Creates density plots for one or more metadata features directly from `SeuratObject@meta.data` (or `active.ident`) without splitting the Seurat object. Supports grouped overlays or split-by-group panels, optional dashed reference lines (`vline`, red), independent median overlays (`plot.median`, black), custom titles, and future-based parallel plotting (`future::plan()` + `future.apply::future_lapply()`). When multiple features are requested, the function returns a named list of plots (one plot per feature).
+### `FeatureDensityPlot(SeuratObject, features, group.by, split.plot, scale.colors, ncol, vline, plot.median, plot.title, nmad, alpha, pt.size)`
+Creates density plots for one or more metadata features directly from `SeuratObject@meta.data` (or `active.ident`) without splitting the Seurat object. Supports grouped overlays or split-by-group panels, dashed red reference lines (`vline`), independent median overlays (`plot.median`, black), and custom titles. The implementation is sequential and uses base `lapply()`. When multiple features are requested, the function returns a named list of plots (one plot per feature).
 
 ```r
-future::plan(future::multisession, workers = 4)
-
 FeatureDensityPlot(
   SeuratObject,
   features = c("percent.mt", "nCount_RNA", "nFeature_RNA"),
@@ -157,8 +155,6 @@ FeatureDensityPlot(
   nmad = 2.5,
   alpha = 0.3
 )
-
-future::plan(future::sequential)
 ```
 
 | Parameter | Default | Description |
@@ -174,7 +170,6 @@ future::plan(future::sequential)
 | `nmad` | `2` | Number of MADs used when `vline` is `"upper"`, `"lower"`, or `"both"` |
 | `alpha` | `0.3` | Density fill transparency |
 | `pt.size` | `0` | Rug line width (`0` disables rugs) |
-| `mc.cores` | `NULL` | Optional temporary worker override via local `future::plan(multisession)` |
 
 ---
 

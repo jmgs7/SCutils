@@ -16,8 +16,7 @@ FeatureDensityPlot(
   plot.title = NULL,
   nmad = 2,
   alpha = 0.3,
-  pt.size = 0,
-  mc.cores = NULL
+  pt.size = 0
 )
 }
 \arguments{
@@ -43,8 +42,8 @@ Accepted values: `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`,
 `"both"`, or a numeric value. `"upper"`, `"lower"`, and `"both"` use
 median +/- `nmad`*MAD.}
 
-\item{plot.median}{Logical. If `TRUE` (default), draws median line(s) in black,
-independently of `vline`.}
+\item{plot.median}{Logical. If `TRUE` (default), draws median line(s) in dashed
+black, independently of `vline`.}
 
 \item{plot.title}{Optional custom title(s). `NULL` uses feature names as titles.
 A length-1 string applies to all features. A character vector with length equal
@@ -57,10 +56,6 @@ or `"both"`. Default is `2`.}
 
 \item{pt.size}{Numeric. If `0` (default), no rug is drawn. If `> 0`, adds a rug
 (`geom_rug()`) with this line width.}
-
-\item{mc.cores}{Integer or `NULL`. Optional worker override for a temporary local
-`future::plan(future::multisession, workers = mc.cores)` used during plotting.
-If `NULL`, the currently active future plan is respected.}
 }
 \value{
 If `length(features) == 1`, returns a `ggplot2`/`patchwork` plot object.
@@ -69,29 +64,35 @@ If `length(features) == 1`, returns a `ggplot2`/`patchwork` plot object.
 }
 \description{
 `FeatureDensityPlot()` draws density plots for one or more metadata features from a
-Seurat object without splitting the object. Grouping is handled directly from
-`SeuratObject@meta.data` (or `active.ident`), which is substantially faster than
-`SplitObject()` workflows for large datasets.
+Seurat object without splitting the object. Grouping is resolved directly from
+`SeuratObject@meta.data` (or from `active.ident`), which avoids expensive object
+partitioning for large datasets.
 
 The function supports:
 - overlayed grouped densities,
 - split (faceted-by-group) density panels,
 - optional vertical reference lines (`vline`) in dashed red,
-- optional independent median overlays (`plot.median`) in black,
+- optional independent median overlays (`plot.median`) in dashed black,
 - custom plot titles via `plot.title`,
-- multi-feature output as a named list (one plot per feature),
-- future-based parallel plotting with `future.apply::future_lapply()`.
+- multi-feature output as a named list (one plot per feature).
+
+The implementation is sequential and uses base `lapply()`.
 }
 \details{
-Parallelization uses `future.apply::future_lapply()`. For split mode
-(`split.plot = TRUE`), work units are parallelized over feature/group pairs so
-plotting can scale across both dimensions without nested parallel apply calls.
+This function intentionally uses sequential base `lapply()`.
+
+Efficiency design:
+- A top-level `lapply()` iterates over `features`.
+- A second nested `lapply()` is used only when `split.plot = TRUE` to iterate over
+  groups within each feature.
+
+This conditional nested structure avoids building a global feature-by-group task
+table and avoids costly post-hoc reassembly. In sequential execution, it keeps
+per-feature data local and reduces indexing overhead while preserving readability.
 }
 \examples{
 \dontrun{
-# Respect an externally configured plan.
-future::plan(future::multisession, workers = 4)
-plot_list <- FeatureDensityPlot(
+plot.list <- FeatureDensityPlot(
   SeuratObject,
   features = c("percent.mt", "nCount_RNA"),
   group.by = "batch",
@@ -99,14 +100,11 @@ plot_list <- FeatureDensityPlot(
   vline = "upper",
   plot.median = TRUE
 )
-future::plan(future::sequential)
 
-# Or override workers only for this call.
 FeatureDensityPlot(
   SeuratObject,
   features = "percent.mt",
-  plot.title = "Mitochondrial Percentage Density",
-  mc.cores = 2
+  plot.title = "Mitochondrial Percentage Density"
 )
 }
 
