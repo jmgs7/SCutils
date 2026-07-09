@@ -446,7 +446,7 @@ FeatureDensityPlot <- function(
       ))
     },
     future.seed = TRUE,
-    future.scheduling = 1
+    future.scheduling = 2
   )
 
   # ─────────────────────────────────────────────────────────────────────────────
