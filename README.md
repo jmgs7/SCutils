@@ -139,6 +139,38 @@ VlnPlotGradient(
 
 ---
 
+### `FeatureDensityPlot(SeuratObject, features, group.by, split.plot, scale.colors, ncol, vline, nmad, alpha, pt.size, mc.cores)`
+Creates density plots for one or more metadata features directly from `SeuratObject@meta.data` (or `active.ident`) without splitting the Seurat object. Supports grouped overlays or split-by-group panels, optional reference lines (`mean`, `median`, `upper/lower/both` via `nmad * MAD`, or fixed numeric thresholds), and multi-feature layout with patchwork.
+
+```r
+FeatureDensityPlot(
+  SeuratObject,
+  features = c("percent.mt", "nCount_RNA", "nFeature_RNA"),
+  group.by = "batch",
+  split.plot = FALSE,
+  scale.colors = "viridis",
+  vline = "upper",
+  nmad = 2.5,
+  alpha = 0.3,
+  mc.cores = 4
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `features` | — | Metadata columns to plot as density distributions |
+| `group.by` | `"active.ident"` | Metadata column for grouping, `"active.ident"`, or `NULL` for no grouping |
+| `split.plot` | `FALSE` | If `FALSE`, overlay groups in one panel per feature; if `TRUE`, one panel per group level |
+| `scale.colors` | `"viridis"` | Viridis palette option for grouped color mapping |
+| `ncol` | `NULL` | Number of columns for patchwork layout across features |
+| `vline` | `NULL` | Reference line mode: `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`, `"both"`, or numeric threshold |
+| `nmad` | `2` | Number of MADs used when `vline` is `"upper"`, `"lower"`, or `"both"` |
+| `alpha` | `0.3` | Density fill transparency |
+| `pt.size` | `0` | Rug line width (`0` disables rugs) |
+| `mc.cores` | `NULL` | Cores used for parallel plotting (`mclapply`; Windows uses 1 core) |
+
+---
+
 ### `QCMetricsBoxplot(SeuratObject, entity_type, entity_name, qc_metrics, gradient_col, scale.colors, lower.limit, upper.limit, pt.size, pt.alpha, fill_color, outlier.size, ncol, gradient_legend)`
 Creates QC boxplots (default: `nFeature_RNA`, `nCount_RNA`, `percent.mt`) grouped by an entity column, with outliers overlaid as gradient-colored jitter points.
 
