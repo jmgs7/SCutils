@@ -140,9 +140,11 @@ VlnPlotGradient(
 ---
 
 ### `FeatureDensityPlot(SeuratObject, features, group.by, split.plot, scale.colors, ncol, vline, plot.median, plot.title, nmad, alpha, pt.size, mc.cores)`
-Creates density plots for one or more metadata features directly from `SeuratObject@meta.data` (or `active.ident`) without splitting the Seurat object. Supports grouped overlays or split-by-group panels, optional reference lines (`vline`, drawn in red), independent median overlays (`plot.median`, drawn in black), custom titles, and parallelized plotting. When multiple features are requested, the function returns a named list of plots (one plot per feature).
+Creates density plots for one or more metadata features directly from `SeuratObject@meta.data` (or `active.ident`) without splitting the Seurat object. Supports grouped overlays or split-by-group panels, optional dashed reference lines (`vline`, red), independent median overlays (`plot.median`, black), custom titles, and future-based parallel plotting (`future::plan()` + `future.apply::future_lapply()`). When multiple features are requested, the function returns a named list of plots (one plot per feature).
 
 ```r
+future::plan(future::multisession, workers = 4)
+
 FeatureDensityPlot(
   SeuratObject,
   features = c("percent.mt", "nCount_RNA", "nFeature_RNA"),
@@ -153,9 +155,10 @@ FeatureDensityPlot(
   plot.median = TRUE,
   plot.title = c("Mitochondrial %", "UMI Counts", "Detected Features"),
   nmad = 2.5,
-  alpha = 0.3,
-  mc.cores = 4
+  alpha = 0.3
 )
+
+future::plan(future::sequential)
 ```
 
 | Parameter | Default | Description |
@@ -165,13 +168,13 @@ FeatureDensityPlot(
 | `split.plot` | `TRUE` | If `TRUE`, one panel per group level; if `FALSE`, overlay groups in one panel per feature |
 | `scale.colors` | `"viridis"` | Viridis palette option for grouped color mapping |
 | `ncol` | `NULL` | Number of columns for split panels within each feature plot |
-| `vline` | `NULL` | Reference line mode (drawn in red): `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`, `"both"`, or numeric threshold |
+| `vline` | `NULL` | Dashed red reference line mode: `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`, `"both"`, or numeric threshold |
 | `plot.median` | `TRUE` | Draw independent median line(s) in black |
 | `plot.title` | `NULL` | Custom title(s): `NULL`, one title for all features, or one title per feature |
 | `nmad` | `2` | Number of MADs used when `vline` is `"upper"`, `"lower"`, or `"both"` |
 | `alpha` | `0.3` | Density fill transparency |
 | `pt.size` | `0` | Rug line width (`0` disables rugs) |
-| `mc.cores` | `NULL` | Cores used for parallel plotting (`mclapply`; Windows uses 1 core) |
+| `mc.cores` | `NULL` | Optional temporary worker override via local `future::plan(multisession)` |
 
 ---
 

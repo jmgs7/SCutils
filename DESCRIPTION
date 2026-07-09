@@ -1,7 +1,7 @@
 Package: SCutils
 Type: Package
 Title: Single-Cell RNA-seq Utility Functions
-Version: 0.6.2
+Version: 0.6.3
 Authors@R: person("José Manuel", "Gómez Silva", email = "30865599+jmgs7@users.noreply.github.com", role = c("aut", "cre"))
 Description: A collection of utility functions for single-cell RNA-seq analysis,
     including quality control metrics, visualization tools with gradient color
@@ -20,7 +20,9 @@ Imports:
     tibble,
     scales,
     BPCells,
-    Azimuth
+    Azimuth,
+    future,
+    future.apply
 URL: https://github.com/jmgs7/SCutils
 BugReports: https://github.com/jmgs7/SCutils/issues
 Config/roxygen2/version: 8.0.0

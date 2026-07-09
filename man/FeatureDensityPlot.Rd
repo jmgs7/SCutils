@@ -38,9 +38,10 @@ density colors (`"viridis"`, `"magma"`, `"plasma"`, `"inferno"`,
 \item{ncol}{Integer or `NULL`. Number of columns for split panels within each
 feature plot when `split.plot = TRUE`. If `NULL`, inferred automatically.}
 
-\item{vline}{Optional reference-line specification (drawn in red). Accepted values:
-`NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`, `"both"`, or a
-numeric value. `"upper"`, `"lower"`, and `"both"` use median +/- `nmad`*MAD.}
+\item{vline}{Optional reference-line specification (drawn in dashed red).
+Accepted values: `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`,
+`"both"`, or a numeric value. `"upper"`, `"lower"`, and `"both"` use
+median +/- `nmad`*MAD.}
 
 \item{plot.median}{Logical. If `TRUE` (default), draws median line(s) in black,
 independently of `vline`.}
@@ -57,9 +58,9 @@ or `"both"`. Default is `2`.}
 \item{pt.size}{Numeric. If `0` (default), no rug is drawn. If `> 0`, adds a rug
 (`geom_rug()`) with this line width.}
 
-\item{mc.cores}{Integer or `NULL`. Number of cores for parallel plotting with
-`parallel::mclapply()`. If `NULL`, defaults to one core per feature (or per
-group when `split.plot = TRUE`). On Windows, forced to `1`.}
+\item{mc.cores}{Integer or `NULL`. Optional worker override for a temporary local
+`future::plan(future::multisession, workers = mc.cores)` used during plotting.
+If `NULL`, the currently active future plan is respected.}
 }
 \value{
 If `length(features) == 1`, returns a `ggplot2`/`patchwork` plot object.
@@ -75,37 +76,37 @@ Seurat object without splitting the object. Grouping is handled directly from
 The function supports:
 - overlayed grouped densities,
 - split (faceted-by-group) density panels,
-- optional vertical reference lines (`vline`) in red,
+- optional vertical reference lines (`vline`) in dashed red,
 - optional independent median overlays (`plot.median`) in black,
 - custom plot titles via `plot.title`,
-- multi-feature output as a named list (one plot per feature).
+- multi-feature output as a named list (one plot per feature),
+- future-based parallel plotting with `future.apply::future_lapply()`.
+}
+\details{
+Parallelization uses `future.apply::future_lapply()`. For split mode
+(`split.plot = TRUE`), work units are parallelized over feature/group pairs so
+plotting can scale across both dimensions without nested parallel apply calls.
 }
 \examples{
 \dontrun{
-# Single feature with default split-by-group mode and median line.
-FeatureDensityPlot(
-  SeuratObject,
-  features = "percent.mt"
-)
-
-# Multi-feature output returns a named list of plots.
-plt_list <- FeatureDensityPlot(
+# Respect an externally configured plan.
+future::plan(future::multisession, workers = 4)
+plot_list <- FeatureDensityPlot(
   SeuratObject,
   features = c("percent.mt", "nCount_RNA"),
   group.by = "batch",
-  split.plot = FALSE,
+  split.plot = TRUE,
   vline = "upper",
-  plot.median = TRUE,
-  nmad = 2.5,
-  mc.cores = 4
+  plot.median = TRUE
 )
+future::plan(future::sequential)
 
-# Custom title for a single feature.
+# Or override workers only for this call.
 FeatureDensityPlot(
   SeuratObject,
   features = "percent.mt",
-  group.by = "library",
-  plot.title = "Mitochondrial Percentage Density"
+  plot.title = "Mitochondrial Percentage Density",
+  mc.cores = 2
 )
 }
 
