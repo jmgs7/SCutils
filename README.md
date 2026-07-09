@@ -5,7 +5,7 @@ An R package providing single-cell RNA-seq utility functions to complement Seura
 ## Installation
 
 ```r
-# install.packages("devtools")
+# install.packages("remotes")
 remotes::install_github("jmgs7/SCutils")
 ```
 
