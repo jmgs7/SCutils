@@ -139,17 +139,19 @@ VlnPlotGradient(
 
 ---
 
-### `FeatureDensityPlot(SeuratObject, features, group.by, split.plot, scale.colors, ncol, vline, nmad, alpha, pt.size, mc.cores)`
-Creates density plots for one or more metadata features directly from `SeuratObject@meta.data` (or `active.ident`) without splitting the Seurat object. Supports grouped overlays or split-by-group panels, optional reference lines (`mean`, `median`, `upper/lower/both` via `nmad * MAD`, or fixed numeric thresholds), and multi-feature layout with patchwork.
+### `FeatureDensityPlot(SeuratObject, features, group.by, split.plot, scale.colors, ncol, vline, plot.median, plot.title, nmad, alpha, pt.size, mc.cores)`
+Creates density plots for one or more metadata features directly from `SeuratObject@meta.data` (or `active.ident`) without splitting the Seurat object. Supports grouped overlays or split-by-group panels, optional reference lines (`vline`, drawn in red), independent median overlays (`plot.median`, drawn in black), custom titles, and parallelized plotting. When multiple features are requested, the function returns a named list of plots (one plot per feature).
 
 ```r
 FeatureDensityPlot(
   SeuratObject,
   features = c("percent.mt", "nCount_RNA", "nFeature_RNA"),
   group.by = "batch",
-  split.plot = FALSE,
+  split.plot = TRUE,
   scale.colors = "viridis",
   vline = "upper",
+  plot.median = TRUE,
+  plot.title = c("Mitochondrial %", "UMI Counts", "Detected Features"),
   nmad = 2.5,
   alpha = 0.3,
   mc.cores = 4
@@ -160,10 +162,12 @@ FeatureDensityPlot(
 |---|---|---|
 | `features` | — | Metadata columns to plot as density distributions |
 | `group.by` | `"active.ident"` | Metadata column for grouping, `"active.ident"`, or `NULL` for no grouping |
-| `split.plot` | `FALSE` | If `FALSE`, overlay groups in one panel per feature; if `TRUE`, one panel per group level |
+| `split.plot` | `TRUE` | If `TRUE`, one panel per group level; if `FALSE`, overlay groups in one panel per feature |
 | `scale.colors` | `"viridis"` | Viridis palette option for grouped color mapping |
-| `ncol` | `NULL` | Number of columns for patchwork layout across features |
-| `vline` | `NULL` | Reference line mode: `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`, `"both"`, or numeric threshold |
+| `ncol` | `NULL` | Number of columns for split panels within each feature plot |
+| `vline` | `NULL` | Reference line mode (drawn in red): `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`, `"both"`, or numeric threshold |
+| `plot.median` | `TRUE` | Draw independent median line(s) in black |
+| `plot.title` | `NULL` | Custom title(s): `NULL`, one title for all features, or one title per feature |
 | `nmad` | `2` | Number of MADs used when `vline` is `"upper"`, `"lower"`, or `"both"` |
 | `alpha` | `0.3` | Density fill transparency |
 | `pt.size` | `0` | Rug line width (`0` disables rugs) |

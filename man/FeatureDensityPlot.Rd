@@ -8,10 +8,12 @@ FeatureDensityPlot(
   SeuratObject,
   features,
   group.by = "active.ident",
-  split.plot = FALSE,
+  split.plot = TRUE,
   scale.colors = "viridis",
   ncol = NULL,
   vline = NULL,
+  plot.median = TRUE,
+  plot.title = NULL,
   nmad = 2,
   alpha = 0.3,
   pt.size = 0,
@@ -26,19 +28,26 @@ FeatureDensityPlot(
 \item{group.by}{Character scalar. Grouping variable. Use a metadata column name,
 `"active.ident"` (default), or `NULL` for no grouping.}
 
-\item{split.plot}{Logical. If `FALSE` (default), groups are overlaid in one panel
-per feature. If `TRUE`, creates one panel per group level for each feature.}
+\item{split.plot}{Logical. If `TRUE` (default), creates one panel per group level
+for each feature. If `FALSE`, groups are overlaid in one panel per feature.}
 
 \item{scale.colors}{Character scalar. Viridis palette option used for grouped
 density colors (`"viridis"`, `"magma"`, `"plasma"`, `"inferno"`,
 `"cividis"`, `"rocket"`, `"mako"`, `"turbo"`). Default is `"viridis"`.}
 
-\item{ncol}{Integer or `NULL`. Number of columns when combining multi-feature
-outputs with patchwork. If `NULL`, uses `length(features)`.}
+\item{ncol}{Integer or `NULL`. Number of columns for split panels within each
+feature plot when `split.plot = TRUE`. If `NULL`, inferred automatically.}
 
-\item{vline}{Optional reference-line specification. Accepted values:
+\item{vline}{Optional reference-line specification (drawn in red). Accepted values:
 `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`, `"both"`, or a
 numeric value. `"upper"`, `"lower"`, and `"both"` use median +/- `nmad`*MAD.}
+
+\item{plot.median}{Logical. If `TRUE` (default), draws median line(s) in black,
+independently of `vline`.}
+
+\item{plot.title}{Optional custom title(s). `NULL` uses feature names as titles.
+A length-1 string applies to all features. A character vector with length equal
+to `length(features)` applies one title per feature.}
 
 \item{nmad}{Numeric. Number of MADs used when `vline` is `"upper"`, `"lower"`,
 or `"both"`. Default is `2`.}
@@ -53,7 +62,9 @@ or `"both"`. Default is `2`.}
 group when `split.plot = TRUE`). On Windows, forced to `1`.}
 }
 \value{
-A `ggplot2` or `patchwork` object.
+If `length(features) == 1`, returns a `ggplot2`/`patchwork` plot object.
+  If `length(features) > 1`, returns a named list of plot objects (one per feature;
+  list names equal `features`).
 }
 \description{
 `FeatureDensityPlot()` draws density plots for one or more metadata features from a
@@ -64,33 +75,37 @@ Seurat object without splitting the object. Grouping is handled directly from
 The function supports:
 - overlayed grouped densities,
 - split (faceted-by-group) density panels,
-- optional vertical reference lines using mean/median, median +/- n*MAD, or a
-  fixed numeric threshold,
-- multi-feature plot composition with patchwork.
+- optional vertical reference lines (`vline`) in red,
+- optional independent median overlays (`plot.median`) in black,
+- custom plot titles via `plot.title`,
+- multi-feature output as a named list (one plot per feature).
 }
 \examples{
 \dontrun{
+# Single feature with default split-by-group mode and median line.
 FeatureDensityPlot(
   SeuratObject,
-  features = c("nCount_RNA", "nFeature_RNA", "percent.mt")
+  features = "percent.mt"
 )
 
-FeatureDensityPlot(
+# Multi-feature output returns a named list of plots.
+plt_list <- FeatureDensityPlot(
   SeuratObject,
-  features = c("percent.mt", "complexity"),
+  features = c("percent.mt", "nCount_RNA"),
   group.by = "batch",
   split.plot = FALSE,
   vline = "upper",
+  plot.median = TRUE,
   nmad = 2.5,
   mc.cores = 4
 )
 
+# Custom title for a single feature.
 FeatureDensityPlot(
   SeuratObject,
   features = "percent.mt",
   group.by = "library",
-  split.plot = TRUE,
-  vline = 10
+  plot.title = "Mitochondrial Percentage Density"
 )
 }
 
