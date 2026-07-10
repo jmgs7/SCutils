@@ -1,9 +1,11 @@
 #' @title FeatureDensityPlot
 #' @description
-#' `FeatureDensityPlot()` draws density plots for one or more metadata features from a
-#' Seurat object without splitting the object. Grouping is resolved directly from
-#' `SeuratObject@meta.data` (or from `active.ident`), which avoids expensive object
-#' partitioning for large datasets.
+#' `FeatureDensityPlot()` draws density plots for features from a Seurat object
+#' without splitting the object. It supports metadata columns, assay features
+#' (from any layer), and dimensional reduction variables via `Seurat::FetchData()`.
+#'
+#' Grouping is resolved from the specified `group.by` variable, avoiding expensive
+#' object partitioning for large datasets.
 #'
 #' The function supports:
 #' - overlayed grouped densities,
@@ -11,13 +13,15 @@
 #' - optional vertical reference lines (`vline`) in dashed red,
 #' - optional independent median overlays (`plot.median`) in dashed black,
 #' - custom plot titles via `plot.title`,
-#' - multi-feature output as a named list (one plot per feature).
+#' - multi-feature output as a named list (one plot per feature),
+#' - per-feature layer selection via `layer`.
 #'
-#' The implementation is sequential and uses base `lapply()`.
+#' The implementation uses sequential base `lapply()` for efficiency.
 #'
 #' @param SeuratObject A Seurat object.
-#' @param features Character vector of metadata columns to plot on the x-axis.
-#' @param group.by Character scalar. Grouping variable. Use a metadata column name,
+#' @param features Character vector of features to plot (metadata columns, assay
+#'   feature names, or reduction variable names like `"PC_1"`).
+#' @param group.by Character scalar. Grouping variable: a metadata column name,
 #'   `"active.ident"` (default), or `NULL` for no grouping.
 #' @param split.plot Logical. If `TRUE` (default), creates one panel per group level
 #'   for each feature. If `FALSE`, groups are overlaid in one panel per feature.
@@ -28,8 +32,14 @@
 #'   feature plot when `split.plot = TRUE`. If `NULL`, inferred automatically.
 #' @param vline Optional reference-line specification (drawn in dashed red).
 #'   Accepted values: `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`,
-#'   `"both"`, or a numeric value. `"upper"`, `"lower"`, and `"both"` use
-#'   median +/- `nmad`*MAD.
+#'   `"both"`, a numeric value, or a character vector with one entry per feature.
+#'   For vector input, each element follows the same rules as the scalar form.
+#'   `"upper"`, `"lower"`, and `"both"` use median +/- `nmad`*MAD.
+#'   A length-1 vector is recycled to all features.
+#' @param layer Character or `NULL`. Specifies which assay layer to extract feature
+#'   values from (e.g., `"data"`, `"counts"`, `"scale.data"`). `NULL` uses the
+#'   default layer. May be a single string (applied to all features) or a character
+#'   vector of length equal to `features` (per-feature layer specification).
 #' @param plot.median Logical. If `TRUE` (default), draws median line(s) in dashed
 #'   black, independently of `vline`.
 #' @param plot.title Optional custom title(s). `NULL` uses feature names as titles.
@@ -46,19 +56,21 @@
 #'   list names equal `features`).
 #'
 #' @details
-#' This function intentionally uses sequential base `lapply()`.
+#' **Data access**: Features are resolved via `Seurat::FetchData()`, which tries
+#' metadata columns first, then keyed variables, then assay features, then the
+#' special `ident` keyword.
 #'
-#' Efficiency design:
-#' - A top-level `lapply()` iterates over `features`.
-#' - A second nested `lapply()` is used only when `split.plot = TRUE` to iterate over
-#'   groups within each feature.
+#' **Layer handling**: When `layer` is a vector of different values, each feature
+#' is fetched with its assigned layer. Metadata columns ignore the layer parameter;
+#' assay features use it to select the desired matrix.
 #'
-#' This conditional nested structure avoids building a global feature-by-group task
-#' table and avoids costly post-hoc reassembly. In sequential execution, it keeps
-#' per-feature data local and reduces indexing overhead while preserving readability.
+#' **Efficiency**: A top-level `lapply()` iterates over features. A second nested
+#' `lapply()` is used only when `split.plot = TRUE` to iterate over group levels.
+#' This structure keeps per-feature data local and reduces indexing overhead.
 #'
 #' @examples
 #' \dontrun{
+#' # Metadata-only (backward compatible)
 #' plot.list <- FeatureDensityPlot(
 #'   SeuratObject,
 #'   features = c("percent.mt", "nCount_RNA"),
@@ -68,10 +80,18 @@
 #'   plot.median = TRUE
 #' )
 #'
+#' # Assay features from log-normalized data
 #' FeatureDensityPlot(
 #'   SeuratObject,
-#'   features = "percent.mt",
-#'   plot.title = "Mitochondrial Percentage Density"
+#'   features = "CD3D",
+#'   layer = "data"
+#' )
+#'
+#' # Mixed per-feature layers
+#' FeatureDensityPlot(
+#'   SeuratObject,
+#'   features = c("percent.mt", "CD3D", "nCount_RNA"),
+#'   layer = c(NA, "counts", NA)  # CD3D from raw counts, others from metadata
 #' )
 #' }
 #'
@@ -88,6 +108,7 @@ FeatureDensityPlot <- function(
   scale.colors = "viridis",
   ncol = NULL,
   vline = NULL,
+  layer = NULL,
   plot.median = TRUE,
   plot.title = NULL,
   nmad = 2,
@@ -97,35 +118,48 @@ FeatureDensityPlot <- function(
   # ─────────────────────────────────────────────────────────────────────────────
   # 1) Input validation
   #
-  # We keep strict validation because plotting functions often fail later with less
-  # informative messages if inputs are malformed. Failing early makes debugging much
-  # faster for users.
+  # Validate early so the plotting code can stay compact and deterministic.
   # ─────────────────────────────────────────────────────────────────────────────
   if (!inherits(SeuratObject, "Seurat")) {
     stop("'SeuratObject' must be a Seurat object.")
   }
 
-  if (!is.character(features) || length(features) == 0) {
+  if (!is.character(features) || length(features) == 0L) {
     stop("'features' must be a non-empty character vector.")
   }
 
-  if (!is.logical(split.plot) || length(split.plot) != 1 || is.na(split.plot)) {
+  if (
+    !is.logical(split.plot) || length(split.plot) != 1L || is.na(split.plot)
+  ) {
     stop("'split.plot' must be a single logical value.")
   }
 
-  if (!is.logical(plot.median) || length(plot.median) != 1 || is.na(plot.median)) {
+  if (
+    !is.logical(plot.median) || length(plot.median) != 1L || is.na(plot.median)
+  ) {
     stop("'plot.median' must be a single logical value.")
   }
 
-  if (!is.numeric(alpha) || length(alpha) != 1 || is.na(alpha) || alpha < 0 || alpha > 1) {
+  if (
+    !is.numeric(alpha) ||
+      length(alpha) != 1L ||
+      is.na(alpha) ||
+      alpha < 0 ||
+      alpha > 1
+  ) {
     stop("'alpha' must be a single numeric value between 0 and 1.")
   }
 
-  if (!is.numeric(pt.size) || length(pt.size) != 1 || is.na(pt.size) || pt.size < 0) {
+  if (
+    !is.numeric(pt.size) ||
+      length(pt.size) != 1L ||
+      is.na(pt.size) ||
+      pt.size < 0
+  ) {
     stop("'pt.size' must be a single non-negative numeric value.")
   }
 
-  if (!is.numeric(nmad) || length(nmad) != 1 || is.na(nmad) || nmad < 0) {
+  if (!is.numeric(nmad) || length(nmad) != 1L || is.na(nmad) || nmad < 0) {
     stop("'nmad' must be a single non-negative numeric value.")
   }
 
@@ -133,96 +167,182 @@ FeatureDensityPlot <- function(
     if (!is.character(plot.title)) {
       stop("'plot.title' must be NULL or a character vector.")
     }
-    if (!(length(plot.title) == 1 || length(plot.title) == length(features))) {
+    if (!(length(plot.title) == 1L || length(plot.title) == length(features))) {
       stop("'plot.title' must have length 1 or length(features).")
     }
   }
 
+  normalize.vline.entry <- function(
+    x,
+    valid.keywords = c("mean", "median", "upper", "lower", "both")
+  ) {
+    if (is.null(x) || is.na(x) || (is.character(x) && tolower(x) == "null")) {
+      return(NULL)
+    }
+    if (is.character(x)) {
+      x.lower <- tolower(x)
+      if (x.lower %in% valid.keywords) {
+        return(x.lower)
+      }
+      x.numeric <- suppressWarnings(as.numeric(x))
+      if (!is.na(x.numeric)) {
+        return(x.numeric)
+      }
+      stop(sprintf(
+        "vline entry '%s' is not a valid keyword, 'NULL', or a numeric value.",
+        x
+      ))
+    }
+    if (is.numeric(x)) {
+      if (length(x) == 1L && !is.na(x)) {
+        return(x)
+      }
+      stop("numeric vline must be a single value, not a vector.")
+    }
+    stop(sprintf(
+      "vline entry has unexpected type: %s",
+      paste(class(x), collapse = ", ")
+    ))
+  }
+
   valid.vline.values <- c("mean", "median", "upper", "lower", "both")
-  if (!is.null(vline)) {
-    if (is.character(vline)) {
-      if (length(vline) != 1 || !tolower(vline) %in% valid.vline.values) {
-        stop("'vline' must be one of: NULL, 'mean', 'median', 'upper', 'lower', 'both', or a numeric value.")
-      }
-      vline <- tolower(vline)
-    } else if (!is.numeric(vline) || length(vline) != 1 || is.na(vline)) {
-      stop("'vline' must be one of: NULL, 'mean', 'median', 'upper', 'lower', 'both', or a numeric value.")
+  if (is.null(vline)) {
+    vline.per.feature <- rep(list(NULL), length(features))
+  } else if (is.numeric(vline)) {
+    if (length(vline) != 1L || is.na(vline)) {
+      stop("'vline' numeric input must be a single non-NA value.")
     }
-  }
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 2) Data extraction and grouping resolution
-  #
-  # We only touch metadata and never split the Seurat object itself. This preserves
-  # memory and keeps runtime predictable for large datasets.
-  # ─────────────────────────────────────────────────────────────────────────────
-  metadata.df <- SeuratObject@meta.data
-
-  missing.features <- setdiff(features, colnames(metadata.df))
-  if (length(missing.features) > 0) {
-    stop(
-      paste0(
-        "These features are not metadata columns: ",
-        paste(missing.features, collapse = ", ")
+    vline.per.feature <- rep(list(vline), length(features))
+  } else if (is.character(vline)) {
+    if (length(vline) == 1L) {
+      vline.per.feature <- rep(
+        list(normalize.vline.entry(vline, valid.vline.values)),
+        length(features)
       )
-    )
-  }
-
-  has.grouping <- !is.null(group.by)
-  if (has.grouping) {
-    if (!is.character(group.by) || length(group.by) != 1) {
-      stop("'group.by' must be NULL or a single character value.")
-    }
-
-    if (group.by == "active.ident") {
-      group.values <- as.character(Seurat::Idents(SeuratObject))
-      group.label <- "active.ident"
+    } else if (length(vline) == length(features)) {
+      vline.per.feature <- lapply(
+        vline,
+        normalize.vline.entry,
+        valid.keywords = valid.vline.values
+      )
     } else {
-      if (!group.by %in% colnames(metadata.df)) {
-        stop(paste0("'group.by' column '", group.by, "' not found in SeuratObject@meta.data."))
-      }
-      group.values <- as.character(metadata.df[[group.by]])
-      group.label <- group.by
+      stop(sprintf(
+        "'vline' has length %d but 'features' has length %d; it must be length 1 or length(features).",
+        length(vline),
+        length(features)
+      ))
     }
   } else {
-    group.values <- rep("all", nrow(metadata.df))
+    stop("'vline' must be NULL, numeric, or character.")
+  }
+
+  if (is.null(layer)) {
+    layer.per.feature <- rep(list(NULL), length(features))
+  } else if (is.character(layer)) {
+    if (length(layer) == 1L) {
+      layer.per.feature <- rep(list(layer), length(features))
+    } else if (length(layer) == length(features)) {
+      layer.per.feature <- lapply(layer, function(x) {
+        if (is.na(x) || tolower(x) == "null") {
+          return(NULL)
+        }
+        x
+      })
+    } else {
+      stop(sprintf(
+        "'layer' has length %d but 'features' has length %d; it must be length 1 or length(features).",
+        length(layer),
+        length(features)
+      ))
+    }
+  } else {
+    stop("'layer' must be NULL or a character vector.")
+  }
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 2) Data extraction via Seurat::FetchData
+  #
+  # Fetch only the requested variables. This keeps memory use low and allows the
+  # function to work with metadata, assay features, and reductions.
+  # ─────────────────────────────────────────────────────────────────────────────
+  cells.use <- colnames(SeuratObject)
+  has.grouping <- !is.null(group.by)
+
+  if (has.grouping) {
+    if (!is.character(group.by) || length(group.by) != 1L) {
+      stop("'group.by' must be NULL or a single character value.")
+    }
+    group.fetch.var <- if (group.by == "active.ident") "ident" else group.by
+    group.data <- Seurat::FetchData(
+      object = SeuratObject,
+      vars = group.fetch.var,
+      cells = cells.use,
+      clean = FALSE
+    )
+    group.values <- as.character(group.data[[group.fetch.var]])
+    group.label <- group.by
+  } else {
+    group.fetch.var <- NULL
+    group.values <- rep("all", length(cells.use))
     group.label <- "all"
   }
 
-  plot.data <- metadata.df[, features, drop = FALSE]
+  feature.data <- lapply(seq_along(features), function(feature.id) {
+    feature.name <- features[[feature.id]]
+    feature.layer <- layer.per.feature[[feature.id]]
+    fetched <- Seurat::FetchData(
+      object = SeuratObject,
+      vars = feature.name,
+      cells = cells.use,
+      layer = feature.layer,
+      clean = FALSE
+    )
+    if (!feature.name %in% colnames(fetched)) {
+      stop(sprintf(
+        "The feature '%s' could not be fetched from the object. Check the feature name and layer.",
+        feature.name
+      ))
+    }
+    fetched[[feature.name]]
+  })
+  names(feature.data) <- features
+
+  plot.data <- data.frame(row.names = cells.use)
+  for (feature.name in features) {
+    plot.data[[feature.name]] <- feature.data[[feature.name]]
+  }
   plot.data$.group <- group.values
   plot.data <- plot.data[!is.na(plot.data$.group), , drop = FALSE]
 
-  # Density requires numeric x values. Coercion is explicit and NA-producing coercions
-  # are handled downstream by removing missing values per feature.
+  # Density requires numeric x values. Coercion is explicit and NA-producing
+  # coercions are handled downstream by removing missing values per feature.
   for (feature.name in features) {
     if (!is.numeric(plot.data[[feature.name]])) {
-      suppressWarnings(plot.data[[feature.name]] <- as.numeric(plot.data[[feature.name]]))
+      suppressWarnings(
+        plot.data[[feature.name]] <- as.numeric(plot.data[[feature.name]])
+      )
     }
-  }
-
-  group.levels <- unique(plot.data$.group)
-  if (length(group.levels) == 0) {
-    stop("No groups available to plot after filtering missing grouping values.")
   }
 
   feature.titles <- if (is.null(plot.title)) {
     features
-  } else if (length(plot.title) == 1) {
+  } else if (length(plot.title) == 1L) {
     rep(plot.title, length(features))
   } else {
     plot.title
   }
 
+  group.levels <- unique(plot.data$.group)
+  if (length(group.levels) == 0L) {
+    stop("No groups available to plot after filtering missing grouping values.")
+  }
+
   # ─────────────────────────────────────────────────────────────────────────────
   # 3) Helper functions
-  #
-  # The helpers isolate statistical line logic so the main plotting branches stay
-  # readable. This separation also makes future maintenance safer.
   # ─────────────────────────────────────────────────────────────────────────────
   compute.vline.positions <- function(values, vline.spec, nmad.value) {
     values <- values[!is.na(values)]
-    if (length(values) == 0 || is.null(vline.spec)) {
+    if (length(values) == 0L || is.null(vline.spec)) {
       return(data.frame(xintercept = numeric(0), stringsAsFactors = FALSE))
     }
 
@@ -246,16 +366,25 @@ FeatureDensityPlot <- function(
     }
 
     if (vline.spec == "upper") {
-      return(data.frame(xintercept = median.value + nmad.value * mad.value, stringsAsFactors = FALSE))
+      return(data.frame(
+        xintercept = median.value + nmad.value * mad.value,
+        stringsAsFactors = FALSE
+      ))
     }
 
     if (vline.spec == "lower") {
-      return(data.frame(xintercept = median.value - nmad.value * mad.value, stringsAsFactors = FALSE))
+      return(data.frame(
+        xintercept = median.value - nmad.value * mad.value,
+        stringsAsFactors = FALSE
+      ))
     }
 
     if (vline.spec == "both") {
       return(data.frame(
-        xintercept = c(median.value - nmad.value * mad.value, median.value + nmad.value * mad.value),
+        xintercept = c(
+          median.value - nmad.value * mad.value,
+          median.value + nmad.value * mad.value
+        ),
         stringsAsFactors = FALSE
       ))
     }
@@ -265,13 +394,21 @@ FeatureDensityPlot <- function(
 
   compute.median.positions <- function(values) {
     values <- values[!is.na(values)]
-    if (length(values) == 0) {
+    if (length(values) == 0L) {
       return(data.frame(xintercept = numeric(0), stringsAsFactors = FALSE))
     }
-    return(data.frame(xintercept = stats::median(values), stringsAsFactors = FALSE))
+    return(data.frame(
+      xintercept = stats::median(values),
+      stringsAsFactors = FALSE
+    ))
   }
 
-  build.single.density.panel <- function(feature.df, x.label, panel.title) {
+  build.single.density.panel <- function(
+    feature.df,
+    x.label,
+    panel.title,
+    vline.spec
+  ) {
     current.plot <- ggplot2::ggplot(feature.df, ggplot2::aes(x = value)) +
       ggplot2::geom_density(fill = "lightblue", alpha = alpha, color = "black")
 
@@ -280,10 +417,8 @@ FeatureDensityPlot <- function(
         ggplot2::geom_rug(sides = "b", linewidth = pt.size, alpha = 0.35)
     }
 
-    # Color/linetype contract is intentionally fixed for interpretability:
-    # red dashed for vline references, black dashed for medians.
-    vline.df <- compute.vline.positions(feature.df$value, vline, nmad)
-    if (nrow(vline.df) > 0) {
+    vline.df <- compute.vline.positions(feature.df$value, vline.spec, nmad)
+    if (nrow(vline.df) > 0L) {
       current.plot <- current.plot +
         ggplot2::geom_vline(
           data = vline.df,
@@ -297,7 +432,7 @@ FeatureDensityPlot <- function(
 
     if (plot.median) {
       median.df <- compute.median.positions(feature.df$value)
-      if (nrow(median.df) > 0) {
+      if (nrow(median.df) > 0L) {
         current.plot <- current.plot +
           ggplot2::geom_vline(
             data = median.df,
@@ -310,37 +445,37 @@ FeatureDensityPlot <- function(
       }
     }
 
-    return(
-      current.plot +
-        ggplot2::theme_bw() +
-        ggplot2::labs(title = panel.title, x = x.label, y = "Density") +
-        ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
-    )
+    current.plot +
+      ggplot2::theme_bw() +
+      ggplot2::labs(title = panel.title, x = x.label, y = "Density") +
+      ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
   }
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 4) Feature-level plotting via top-level lapply
-  #
-  # Efficiency choice:
-  # - Always iterate features with lapply.
-  # - Only in split mode, use a second nested lapply over groups.
-  #
-  # This avoids global task-index construction and keeps per-feature data localized.
   # ─────────────────────────────────────────────────────────────────────────────
   feature.plots <- lapply(seq_along(features), function(feature.id) {
     feature.name <- features[[feature.id]]
     feature.title <- feature.titles[[feature.id]]
-
+    feature.vline <- vline.per.feature[[feature.id]]
     feature.df <- plot.data[, c(feature.name, ".group"), drop = FALSE]
     names(feature.df)[1] <- "value"
     feature.df <- feature.df[!is.na(feature.df$value), , drop = FALSE]
 
-    if (nrow(feature.df) == 0) {
-      stop(paste0("Feature '", feature.name, "' has no non-missing numeric values to plot."))
+    if (nrow(feature.df) == 0L) {
+      stop(sprintf(
+        "Feature '%s' has no non-missing numeric values to plot.",
+        feature.name
+      ))
     }
 
     if (!has.grouping) {
-      return(build.single.density.panel(feature.df, x.label = feature.name, panel.title = feature.title))
+      return(build.single.density.panel(
+        feature.df = feature.df,
+        x.label = feature.name,
+        panel.title = feature.title,
+        vline.spec = feature.vline
+      ))
     }
 
     if (!split.plot) {
@@ -361,13 +496,15 @@ FeatureDensityPlot <- function(
           )
       }
 
-      if (!is.null(vline)) {
+      if (!is.null(feature.vline)) {
         vline.df <- feature.df |>
           dplyr::group_by(.group) |>
-          dplyr::group_modify(~compute.vline.positions(.x$value, vline, nmad)) |>
+          dplyr::group_modify(
+            ~ compute.vline.positions(.x$value, feature.vline, nmad)
+          ) |>
           dplyr::ungroup()
 
-        if (nrow(vline.df) > 0) {
+        if (nrow(vline.df) > 0L) {
           current.plot <- current.plot +
             ggplot2::geom_vline(
               data = vline.df,
@@ -383,9 +520,12 @@ FeatureDensityPlot <- function(
       if (plot.median) {
         median.df <- feature.df |>
           dplyr::group_by(.group) |>
-          dplyr::summarise(xintercept = stats::median(value, na.rm = TRUE), .groups = "drop")
+          dplyr::summarise(
+            xintercept = stats::median(value, na.rm = TRUE),
+            .groups = "drop"
+          )
 
-        if (nrow(median.df) > 0) {
+        if (nrow(median.df) > 0L) {
           current.plot <- current.plot +
             ggplot2::geom_vline(
               data = median.df,
@@ -400,27 +540,39 @@ FeatureDensityPlot <- function(
 
       return(
         current.plot +
-          ggplot2::scale_color_viridis_d(option = scale.colors, name = group.label) +
-          ggplot2::scale_fill_viridis_d(option = scale.colors, name = group.label) +
+          ggplot2::scale_color_viridis_d(
+            option = scale.colors,
+            name = group.label
+          ) +
+          ggplot2::scale_fill_viridis_d(
+            option = scale.colors,
+            name = group.label
+          ) +
           ggplot2::theme_bw() +
-          ggplot2::labs(title = feature.title, x = feature.name, y = "Density") +
+          ggplot2::labs(
+            title = feature.title,
+            x = feature.name,
+            y = "Density"
+          ) +
           ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
       )
     }
 
-    # Split branch: nested lapply across groups (only when needed).
     group.plots <- lapply(group.levels, function(group.name) {
       group.df <- feature.df[feature.df$.group == group.name, , drop = FALSE]
-      return(
-        build.single.density.panel(
-          feature.df = group.df,
-          x.label = feature.name,
-          panel.title = group.name
-        )
+      build.single.density.panel(
+        feature.df = group.df,
+        x.label = feature.name,
+        panel.title = group.name,
+        vline.spec = feature.vline
       )
     })
 
-    ncol.groups <- if (!is.null(ncol)) ncol else ceiling(sqrt(length(group.plots)))
+    ncol.groups <- if (!is.null(ncol)) {
+      ncol
+    } else {
+      ceiling(sqrt(length(group.plots)))
+    }
 
     return(
       patchwork::wrap_plots(group.plots, ncol = ncol.groups) +
@@ -435,15 +587,11 @@ FeatureDensityPlot <- function(
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 5) Return-shape contract
-  #
-  # Preserve existing behavior:
-  # - one feature -> single plot object
-  # - multiple features -> named list of plots
   # ─────────────────────────────────────────────────────────────────────────────
   names(feature.plots) <- features
 
-  if (length(feature.plots) == 1) {
-    return(feature.plots[[1]])
+  if (length(feature.plots) == 1L) {
+    return(feature.plots[[1L]])
   }
 
   return(feature.plots)
