@@ -477,14 +477,10 @@ FeatureDensityPlot <- function(
   # 4) Feature-level plotting via top-level lapply
   # ─────────────────────────────────────────────────────────────────────────────
   feature.plots <- lapply(seq_along(features), function(feature.id) {
-    # feature.name/feature.title are user-facing labels; feature.key is internal
-    # and unique per position, which preserves correct behavior for duplicates.
     feature.name <- features[[feature.id]]
-    feature.key <- feature.keys[[feature.id]]
     feature.title <- feature.titles[[feature.id]]
     feature.vline <- vline.per.feature[[feature.id]]
-
-    feature.df <- plot.data[, c(feature.key, ".group"), drop = FALSE]
+    feature.df <- plot.data[, c(feature.name, ".group"), drop = FALSE]
     names(feature.df)[1] <- "value"
     feature.df <- feature.df[!is.na(feature.df$value), , drop = FALSE]
 
