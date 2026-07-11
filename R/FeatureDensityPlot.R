@@ -262,12 +262,19 @@ FeatureDensityPlot <- function(
   # ─────────────────────────────────────────────────────────────────────────────
   # 2) Data extraction via Seurat::FetchData
   #
-  # Fetch only the requested variables. This keeps memory use low and allows the
-  # function to work with metadata, assay features, and reductions.
+  # We construct per-feature internal keys so duplicated feature names remain
+  # distinct internally. This is essential for cases like features = c("MALAT1",
+  # "MALAT1") with different layer entries; name-based indexing would collapse
+  # those entries and silently reuse one layer.
   # ─────────────────────────────────────────────────────────────────────────────
   cells.use <- colnames(SeuratObject)
   has.grouping <- !is.null(group.by)
 
+  # Internal stable keys (one key per requested feature occurrence).
+  # These keys are used only for internal storage and lookup.
+  feature.keys <- paste0(".feature_", seq_along(features))
+
+  # Resolve grouping values once so all feature fetches align to the same cells.
   if (has.grouping) {
     if (!is.character(group.by) || length(group.by) != 1L) {
       stop("'group.by' must be NULL or a single character value.")
@@ -287,9 +294,12 @@ FeatureDensityPlot <- function(
     group.label <- "all"
   }
 
+  # Fetch each feature by position (not by name). Position-based alignment is the
+  # contract that links features, layer.per.feature, vline.per.feature, and titles.
   feature.data <- lapply(seq_along(features), function(feature.id) {
     feature.name <- features[[feature.id]]
     feature.layer <- layer.per.feature[[feature.id]]
+
     fetched <- Seurat::FetchData(
       object = SeuratObject,
       vars = feature.name,
@@ -297,33 +307,44 @@ FeatureDensityPlot <- function(
       layer = feature.layer,
       clean = FALSE
     )
+
     if (!feature.name %in% colnames(fetched)) {
       stop(sprintf(
         "The feature '%s' could not be fetched from the object. Check the feature name and layer.",
         feature.name
       ))
     }
-    fetched[[feature.name]]
-  })
-  names(feature.data) <- features
 
+    # Explicitly reindex by cells.use to preserve row alignment even if any future
+    # Seurat internals alter FetchData row ordering.
+    fetched[cells.use, feature.name, drop = TRUE]
+  })
+  names(feature.data) <- feature.keys
+
+  # Assemble internal plotting data with unique keys so duplicate feature names do
+  # not overwrite or alias one another.
   plot.data <- data.frame(row.names = cells.use)
-  for (feature.name in features) {
-    plot.data[[feature.name]] <- feature.data[[feature.name]]
+  for (feature.id in seq_along(features)) {
+    feature.key <- feature.keys[[feature.id]]
+    plot.data[[feature.key]] <- feature.data[[feature.key]]
   }
+
+  # Append grouping column and remove rows without grouping values.
   plot.data$.group <- group.values
   plot.data <- plot.data[!is.na(plot.data$.group), , drop = FALSE]
 
   # Density requires numeric x values. Coercion is explicit and NA-producing
   # coercions are handled downstream by removing missing values per feature.
-  for (feature.name in features) {
-    if (!is.numeric(plot.data[[feature.name]])) {
+  for (feature.id in seq_along(features)) {
+    feature.key <- feature.keys[[feature.id]]
+    if (!is.numeric(plot.data[[feature.key]])) {
       suppressWarnings(
-        plot.data[[feature.name]] <- as.numeric(plot.data[[feature.name]])
+        plot.data[[feature.key]] <- as.numeric(plot.data[[feature.key]])
       )
     }
   }
 
+  # Titles stay user-facing and index-aligned to features.
   feature.titles <- if (is.null(plot.title)) {
     features
   } else if (length(plot.title) == 1L) {
@@ -332,6 +353,7 @@ FeatureDensityPlot <- function(
     plot.title
   }
 
+  # Cache group levels once for split-plot branch.
   group.levels <- unique(plot.data$.group)
   if (length(group.levels) == 0L) {
     stop("No groups available to plot after filtering missing grouping values.")
@@ -455,10 +477,14 @@ FeatureDensityPlot <- function(
   # 4) Feature-level plotting via top-level lapply
   # ─────────────────────────────────────────────────────────────────────────────
   feature.plots <- lapply(seq_along(features), function(feature.id) {
+    # feature.name/feature.title are user-facing labels; feature.key is internal
+    # and unique per position, which preserves correct behavior for duplicates.
     feature.name <- features[[feature.id]]
+    feature.key <- feature.keys[[feature.id]]
     feature.title <- feature.titles[[feature.id]]
     feature.vline <- vline.per.feature[[feature.id]]
-    feature.df <- plot.data[, c(feature.name, ".group"), drop = FALSE]
+
+    feature.df <- plot.data[, c(feature.key, ".group"), drop = FALSE]
     names(feature.df)[1] <- "value"
     feature.df <- feature.df[!is.na(feature.df$value), , drop = FALSE]
 
