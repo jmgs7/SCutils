@@ -344,9 +344,16 @@ FeatureDensityPlot <- function(
     }
   }
 
+  # We will the define the plot nlames based on the features and the layer used for each feature. This is important for cases where the same feature name is used with different layers, as it ensures that each plot has a unique name.
+  # This variable will be also used to name the plots in the returned list, ensuring that each plot can be easily identified based on the feature and layer used.
+  plot.names <- paste0(features, "_", layer.per.feature)
+  plot.names <- gsub("_+$", "", plot.names) # Remove trailing underscores if layer is NULL
+  plot.names <- gsub("_NULL$", "", plot.names) # Remove trailing _NULL if layer is "NULL" (string)
+  plot.names <- gsub("_NA$", "", plot.names) # Remove trailing _NA if layer is NA
+
   # Titles stay user-facing and index-aligned to features.
   feature.titles <- if (is.null(plot.title)) {
-    features
+    plot.names
   } else if (length(plot.title) == 1L) {
     rep(plot.title, length(features))
   } else {
@@ -477,10 +484,14 @@ FeatureDensityPlot <- function(
   # 4) Feature-level plotting via top-level lapply
   # ─────────────────────────────────────────────────────────────────────────────
   feature.plots <- lapply(seq_along(features), function(feature.id) {
+    # feature.name/feature.title are user-facing labels; feature.key is internal
+    # and unique per position, which preserves correct behavior for duplicates.
     feature.name <- features[[feature.id]]
+    feature.key <- feature.keys[[feature.id]]
     feature.title <- feature.titles[[feature.id]]
     feature.vline <- vline.per.feature[[feature.id]]
-    feature.df <- plot.data[, c(feature.name, ".group"), drop = FALSE]
+
+    feature.df <- plot.data[, c(feature.key, ".group"), drop = FALSE]
     names(feature.df)[1] <- "value"
     feature.df <- feature.df[!is.na(feature.df$value), , drop = FALSE]
 
@@ -610,7 +621,8 @@ FeatureDensityPlot <- function(
   # ─────────────────────────────────────────────────────────────────────────────
   # 5) Return-shape contract
   # ─────────────────────────────────────────────────────────────────────────────
-  names(feature.plots) <- features
+
+  names(feature.plots) <- plot.names
 
   if (length(feature.plots) == 1L) {
     return(feature.plots[[1L]])
