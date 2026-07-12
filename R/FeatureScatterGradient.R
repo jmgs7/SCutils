@@ -21,8 +21,8 @@
 #' set to the global correlation string (e.g. `"Pearson = 0.85"`). When
 #' `group.by` is non-`NULL`, the function returns a combined patchwork of
 #' per-group scatter panels, with a main title summarising the feature pairing
-#' (or an optional `plot.title`) and per-panel titles showing the group-specific
-#' correlation values.
+#' (or an optional `plot.title`), each panel titled with the group name and
+#' subtitled with the group-specific correlation string.
 #'
 #' Axis labels follow `feature_layer` naming for assay-backed features when a
 #' layer is specified, and plain `feature` naming for metadata-backed features,
@@ -48,11 +48,11 @@
 #'   is `"viridis"`.
 #' @param lower.limit Numeric scalar or `NULL`. Lower limit of the gradient
 #'   color scale. Only applied when `upper.limit` is non-`NULL`. When `NULL`,
-#'   the lower limit is inferred automatically by ggplot when `upper.limit` is
-#'   also `NULL`.
+#'   the lower limit is inferred automatically from the data when `upper.limit`
+#'   is also `NULL`.
 #' @param upper.limit Numeric scalar or `NULL`. Upper limit of the gradient
-#'   color scale. When `NULL`, the gradient limits are set automatically by
-#'   ggplot. When non-`NULL`, `lower.limit` must also be non-`NULL` and strictly
+#'   color scale. When `NULL`, the gradient limits are set automatically from
+#'   the data. When non-`NULL`, `lower.limit` must also be non-`NULL` and strictly
 #'   smaller than `upper.limit`.
 #' @param corr.method Character scalar. Method used to compute the correlation
 #'   between `feature1` and `feature2`. Accepted values are `"pearson"`
@@ -82,9 +82,10 @@
 #'
 #' If `group.by` is non-`NULL`, returns a combined `ggplot2`/`patchwork` object
 #' with one panel per group level. Each panel shows the scatter of `feature1`
-#' vs `feature2` for that group, colored by `gradient`, and a panel title
-#' displaying the group-specific correlation value. The combined plot has a
-#' main title and shared legend.
+#' vs `feature2` for that group, colored by `gradient`, with the panel title
+#' equal to the group name and the panel subtitle displaying the group-specific
+#' correlation string. The combined plot has a main title and a single shared
+#' gradient legend.
 #'
 #' @details
 #' **Data access**: All variables (`feature1`, `feature2`, `gradient`, and
@@ -103,13 +104,20 @@
 #' **Grouping and correlation**: When `group.by` is `NULL`, correlation is
 #' computed across all cells using the selected `corr.method` and displayed on
 #' the plot. When `group.by` is non-`NULL`, correlation is recomputed separately
-#' for each group level and displayed in the title of each panel. Groups with
-#' insufficient non-NA data yield an `"NA"` correlation value.
+#' for each group level and displayed as the subtitle of each panel, while the
+#' panel title shows the group name. Groups with insufficient non-NA data yield
+#' an `"NA"` correlation value.
+#'
+#' **Gradient scaling across groups**: In grouped mode, the gradient color scale
+#' is computed globally from all `gradient` values (unless limits are provided
+#' via `lower.limit` and `upper.limit`). This ensures that the same scale and
+#' single legend are used across all group panels, making gradients directly
+#' comparable between groups.
 #'
 #' **Aesthetics**: Ungrouped plots mimic Seurat's `FeatureScatter` aesthetics
 #' (single panel, Seurat-like theme, point coloring), while grouped plots are
-#' styled to be cohesive with `FeatureDensityPlot()`
-#' (consistent fonts, legend placement, and patchwork layout).
+#' styled to be cohesive with `FeatureDensityPlot()` (consistent fonts, legend
+#' placement, and patchwork layout).
 #'
 #' @examples
 #' \dontrun{
@@ -336,8 +344,8 @@ FeatureScatterGradient <- function(
     return(method.name)
   }
 
-  # Helper to construct axis labels and title tokens based on metadata vs assay
-  # origin and layer specification.
+  # Helper to construct axis labels based on metadata vs assay origin
+  # and layer specification.
   makeAxisLabel <- function(feature.name, layer.value, metadata.names) {
     # Determine whether the feature is backed by metadata.
     is.metadata <- feature.name %in% metadata.names
@@ -415,8 +423,7 @@ FeatureScatterGradient <- function(
   # Cache metadata names for axis and title naming logic.
   metadata.names <- colnames(SeuratObject@meta.data)
 
-  # Resolve grouping vector when group.by is non-NULL; default to "ident" when
-  # grouping is requested but group.by equals "ident".
+  # Resolve grouping vector when group.by is non-NULL.
   group.values <- NULL
   group.levels <- NULL
   if (!is.null(group.by)) {
@@ -459,7 +466,7 @@ FeatureScatterGradient <- function(
     cells.use <- cells.use[valid.group.cells]
     group.values <- group.values[valid.group.cells]
 
-    # Determine group levels, ordered as in FeatureDensityPlot (sorted unique).
+    # Determine group levels, ordered as sorted unique.
     group.levels <- sort(unique(group.values))
     if (length(group.levels) == 0L) {
       stop(
@@ -485,8 +492,7 @@ FeatureScatterGradient <- function(
     cells.use = cells.use
   )
 
-  # Fetch gradient values (always from default layer; metadata vs assay handled
-  # automatically by FetchData).
+  # Fetch gradient values (always from default layer).
   gradient.values <- fetchFeatureValues(
     object = SeuratObject,
     feature.name = gradient,
@@ -507,10 +513,18 @@ FeatureScatterGradient <- function(
     metadata.names = metadata.names
   )
 
-  # Prepare gradient scale limits: only used when upper.limit is non-NULL.
-  gradient.limits <- NULL
+  # Determine gradient scale limits:
+  # - If user provided limits, use those.
+  # - Otherwise, compute global limits from all gradient values so that grouped
+  #   panels share a common scale and legend.
   if (!is.null(upper.limit)) {
     gradient.limits <- c(lower.limit, upper.limit)
+  } else {
+    if (all(is.na(gradient.values))) {
+      gradient.limits <- NULL
+    } else {
+      gradient.limits <- range(gradient.values, na.rm = TRUE)
+    }
   }
 
   # Label for the gradient color scale (use raw gradient name).
@@ -519,8 +533,7 @@ FeatureScatterGradient <- function(
   # Format correlation method label for titles.
   method.label <- formatMethodLabel(corr.method.lower)
 
-  # Ungrouped case: group.by is NULL; compute global correlation and build a
-  # single scatter plot mimicking Seurat::FeatureScatter aesthetics.
+  # Ungrouped case: compute global correlation and build a single scatter plot.
   if (is.null(group.by)) {
     # Build data frame for plotting: x, y, gradient.
     df <- data.frame(
@@ -578,12 +591,7 @@ FeatureScatterGradient <- function(
     return(p)
   }
 
-  # Grouped case: group.by is non-NULL; compute per-group correlations and
-  # build one scatter panel per group level, then combine via patchwork.
-  # This matches the grouped outputs and aesthetic cohesion of
-  # FeatureDensityPlot() and VlnPlotGradient().
-
-  # Build full data frame with x, y, gradient, and group factor.
+  # Grouped case: compute per-group correlations and build per-group panels.
   df.full <- data.frame(
     x = x.values,
     y = y.values,
@@ -624,14 +632,12 @@ FeatureScatterGradient <- function(
       NA_real_
     }
 
-    # Build per-group title: e.g. "Pearson = 0.85" or "Pearson = NA".
-    corr.title.group <- paste0(
+    corr.subtitle <- paste0(
       method.label,
       " = ",
       if (is.na(corr.group.round)) "NA" else corr.group.round
     )
 
-    # Build per-group ggplot: scatter of x vs y, colored by gradient.
     p.group <- ggplot2::ggplot(
       df.group,
       ggplot2::aes(x = x, y = y, color = gradient)
@@ -644,7 +650,8 @@ FeatureScatterGradient <- function(
         na.value = "grey70"
       ) +
       ggplot2::labs(
-        title = corr.title.group,
+        title = current.group,
+        subtitle = corr.subtitle,
         x = axis.x.label,
         y = axis.y.label
       ) +
@@ -653,6 +660,10 @@ FeatureScatterGradient <- function(
         plot.title = ggplot2::element_text(
           face = "bold",
           size = 9,
+          hjust = 0.5
+        ),
+        plot.subtitle = ggplot2::element_text(
+          size = 8,
           hjust = 0.5
         ),
         axis.text = ggplot2::element_text(size = 7),
