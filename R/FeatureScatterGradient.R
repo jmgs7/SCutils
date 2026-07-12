@@ -329,7 +329,7 @@ FeatureScatterGradient <- function(
   # an omitted layer rather than being forwarded to FetchData()).
   normalizeSingleLayer <- function(layer.value) {
     layer.value.lower <- tolower(layer.value)
-    if (layer.value.lower %in% c("", "null", NA)) {
+    if (layer.value.lower %in% c("", "null") || is.na(layer.value)) {
       return(NULL)
     }
     
