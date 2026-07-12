@@ -27,42 +27,74 @@
 #' @export
 CalculateQC <- function(SeuratObject) {
   # Estimation of metrics
-  SeuratObject[["percent.mt"]] <- PercentageFeatureSet(
+  SeuratObject@meta.data$percent.mt <- PercentageFeatureSet(
     SeuratObject,
     pattern = "^MT-"
   ) # Percentage of counts corresponding to mitochondrial genes.
-  SeuratObject[["percent.ribo"]] <- PercentageFeatureSet(
+  SeuratObject@meta.data$percent.ribo <- PercentageFeatureSet(
     SeuratObject,
     "^RP[SL]"
   ) # Percentage of counts corresponding to ribosomal genes.
-  SeuratObject[["percent.hb"]] <- PercentageFeatureSet(
+  SeuratObject@meta.data$percent.hb <- PercentageFeatureSet(
     SeuratObject,
     "^HB[^(P)]"
   ) # Percentage of counts corresponding to hemoglobin.
-  SeuratObject[["percent.ig"]] <- PercentageFeatureSet(SeuratObject, "^IG") # Percentage of counts corresponding to immunoglobulins.
-  SeuratObject[["percent.plat"]] <- PercentageFeatureSet(
+  SeuratObject@meta.data$percent.ig <- PercentageFeatureSet(SeuratObject, "^IG") # Percentage of counts corresponding to immunoglobulins.
+  SeuratObject@meta.data$percent.plat <- PercentageFeatureSet(
     SeuratObject,
     "PECAM1|PF4"
   ) # Percentage of counts corresponding to genes associated with platelets.
-  SeuratObject[["percent.MALAT1"]] <- PercentageFeatureSet(
+  SeuratObject@meta.data$percent.MALAT1 <- PercentageFeatureSet(
     SeuratObject,
     pattern = "MALAT1"
   ) # Percentage of counts corresponding to MALAT1.
-  SeuratObject[["percent.S100A9"]] <- PercentageFeatureSet(
+  SeuratObject@meta.data$percent.S100A9 <- PercentageFeatureSet(
     SeuratObject,
     pattern = "S100A9"
   ) # Percentage of counts corresponding to S100A9.
-  SeuratObject[["percent.S100A8"]] <- PercentageFeatureSet(
+  SeuratObject@meta.data$percent.S100A8 <- PercentageFeatureSet(
     SeuratObject,
     pattern = "S100A8"
   ) # Percentage of counts corresponding to S100A8.
-  SeuratObject[["percent.FCGR3B"]] <- PercentageFeatureSet(
+  SeuratObject@meta.data$percent.FCGR3B <- PercentageFeatureSet(
     SeuratObject,
     pattern = "FCGR3B"
   ) # Percentage of counts corresponding to FCGR3B.
-  SeuratObject[["log10_nFeature_RNA"]] <- log10(SeuratObject[["nFeature_RNA"]])
-  SeuratObject[["log10_nCount_RNA"]] <- log10(SeuratObject[["nCount_RNA"]])
-  SeuratObject[["complexity"]] <- SeuratObject[["log10_nFeature_RNA"]] /
-    SeuratObject[["log10_nCount_RNA"]] # Complexity, corresponding to the amount of genes that are covered by the counts of each cell.
+  SeuratObject@meta.data$log10_nFeature_RNA <- log10(
+    SeuratObject@meta.data$nFeature_RNA
+  )
+  SeuratObject@meta.data$log10_nCount_RNA <- log10(
+    SeuratObject@meta.data$nCount_RNA
+  )
+  SeuratObject@meta.data$complexity <- SeuratObject@meta.data$log10_nFeature_RNA /
+    SeuratObject@meta.data$log10_nCount_RNA # Complexity, corresponding to the amount of genes that are covered by the counts of each cell.
+
+  # This steps are only if the Seurat object has log-normalized data layers, which are not always present.
+  data.layers <- Layers(SeuratObject, assay = "RNA")
+  if (any(grepl("data", data.layers))) {
+    # We calculate the total number of log-normalized counts per cell, and the total number of features detected per cell in log counts, and store them in the metadata of the Seurat object.
+
+    # 1. Fetch all log-normalized 'data' layers
+    data.layers <- Layers(SeuratObject, assay = "RNA", search = "data")
+    layer.data <- lapply(data.layers, function(layer) {
+      LayerData(SeuratObject, assay = "RNA", layer = layer)
+    })
+
+    # 2. Calculate Total Normalized Counts per cell across all layers
+    SeuratObject@meta.data$nCount_logRNA <- lapply(layer.data, function(layer) {
+      BPCells::colSums(layer)
+    }) |>
+      unlist()
+
+    # 3. Calculate Number of Detected Features (genes > 0) per cell across all layers
+    SeuratObject@meta.data$nFeature_logRNA <- lapply(
+      layer.data,
+      function(layer) {
+        BPCells::colSums(layer > 0)
+      }
+    ) |>
+      unlist()
+  }
+
   return(SeuratObject)
 }

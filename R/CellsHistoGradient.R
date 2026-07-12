@@ -41,14 +41,14 @@ CellsHistoGradient <- function(
 ) {
   if (is.null(group.by)) {
     group.by <- "SeuratObject@active.ident"
-    cells_per_feature <- as.data.frame(SeuratObject@active.ident) %>%
-      group_by(.data[[group.by]]) %>%
-      summarise(Cells = n()) %>%
+    cells_per_feature <- as.data.frame(SeuratObject@active.ident) |>
+      group_by(.data[[group.by]]) |>
+      summarise(Cells = n()) |>
       arrange(desc(Cells))
   } else {
-    cells_per_feature <- SeuratObject@meta.data %>%
-      group_by(.data[[group.by]]) %>%
-      summarise(Cells = n()) %>%
+    cells_per_feature <- SeuratObject@meta.data |>
+      group_by(.data[[group.by]]) |>
+      summarise(Cells = n()) |>
       arrange(desc(Cells))
   }
 

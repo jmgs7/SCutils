@@ -26,21 +26,21 @@ scGSEAmarkers <- function(
   cluster_list <- as.character(unique(cluster_markers$cluster))
 
   for (current_cluster in cluster_list) {
-    cluster_stats <- cluster_markers %>%
-      filter(cluster == current_cluster) %>%
-      arrange(-avg_log2FC) %>%
-      select(c(gene, avg_log2FC)) %>%
+    cluster_stats <- cluster_markers |>
+      filter(cluster == current_cluster) |>
+      arrange(-avg_log2FC) |>
+      select(c(gene, avg_log2FC)) |>
       tibble::deframe()
 
     res <- fgsea(
       pathways = reference_markers,
       stats = cluster_stats,
       BPPARAM = BiocParallel::MulticoreParam(workers = workers)
-    ) %>%
-      filter(padj < padj.threshold) %>%
+    ) |>
+      filter(padj < padj.threshold) |>
       arrange(-NES)
     if (only.pos) {
-      res <- res %>% filter(NES > 0) %>% arrange(-NES)
+      res <- res |> filter(NES > 0) |> arrange(-NES)
     }
 
     result[[current_cluster]] <- res

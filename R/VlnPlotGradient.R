@@ -357,8 +357,8 @@ VlnPlotGradient <- function(
     )
 
     # Count cells per group using dplyr::count().
-    gradient.values <- gradient.ident.data %>%
-      dplyr::count(group, name = "nCells") %>%
+    gradient.values <- gradient.ident.data |>
+      dplyr::count(group, name = "nCells") |>
       dplyr::rename(gradient_val = nCells)
 
     # Legend label for this special case.
@@ -413,8 +413,8 @@ VlnPlotGradient <- function(
     )
 
     # Summarise mean gradient per group, removing NA values.
-    gradient.values <- gradient.ident.data %>%
-      dplyr::group_by(group) %>%
+    gradient.values <- gradient.ident.data |>
+      dplyr::group_by(group) |>
       dplyr::summarise(
         gradient_val = mean(gradient_raw, na.rm = TRUE),
         .groups = "drop"
@@ -434,7 +434,7 @@ VlnPlotGradient <- function(
 
   # Order groups by descending gradient value so violins appear from highest to
   # lowest gradient on the x-axis.
-  gradient.values <- gradient.values %>%
+  gradient.values <- gradient.values |>
     dplyr::arrange(dplyr::desc(gradient_val))
   ordered.levels <- gradient.values$group
 
@@ -543,8 +543,8 @@ VlnPlotGradient <- function(
       group = group.values,
       value = feature.values,
       stringsAsFactors = FALSE
-    ) %>%
-      dplyr::left_join(gradient.values, by = "group") %>%
+    ) |>
+      dplyr::left_join(gradient.values, by = "group") |>
       dplyr::mutate(
         group = factor(group, levels = ordered.levels)
       )
