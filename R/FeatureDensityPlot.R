@@ -103,7 +103,7 @@
 FeatureDensityPlot <- function(
   SeuratObject,
   features,
-  group.by = "active.ident",
+  group.by = "ident",
   split.plot = TRUE,
   scale.colors = "viridis",
   ncol = NULL,
