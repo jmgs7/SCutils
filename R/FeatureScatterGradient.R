@@ -692,7 +692,12 @@ FeatureScatterGradient <- function(
           hjust = 0.5
         ),
         axis.text = ggplot2::element_text(size = 7),
-        axis.title = ggplot2::element_text(size = 8)
+        axis.title = ggplot2::element_text(size = 8),
+        # Suppress the legend in individual panels so patchwork's guides="collect"
+        # can gather a single shared legend from the first panel's scale instead of
+        # merging independent legends. Set legend.position to "none" on all but
+        # suppress the default behavior where each panel shows its own legend key.
+        legend.position = "none"
       )
 
     # Store panel in list.
@@ -710,6 +715,9 @@ FeatureScatterGradient <- function(
   main.title <- if (is.null(plot.title)) default.main.title else plot.title
 
   # Combine panels into a single patchwork object with shared legend.
+  # Use guides="collect" to extract and reuse the color scale from the first plot
+  # without duplicating it. The legend.position theme in the combined annotation
+  # positions the collected legend on the right side of the entire patchwork.
   combined <- patchwork::wrap_plots(plot.list, ncol = ncol) +
     patchwork::plot_layout(guides = "collect") &
     ggplot2::theme(legend.position = "right")
