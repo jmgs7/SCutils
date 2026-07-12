@@ -535,21 +535,37 @@ FeatureScatterGradient <- function(
   )
 
   # Determine gradient scale limits:
-  # - If neither bound is provided, use data-derived global limits.
-  # - If one or both bounds are provided, pass them directly to ggplot2 using
-  #   NA for open bounds so ggplot2 can infer the missing side from the data.
-  #   This keeps grouped panels on a shared, comparable scale.
+  # - If both bounds are NULL, compute limits from all gradient values (global range).
+  # - If only one bound is specified, infer the missing bound numerically from the data
+  #   rather than passing NA to ggplot2. This prevents patchwork from creating duplicate
+  #   guides when collecting from many panels, which happens because ggplot2 treats NA
+  #   as a separate limit value that can conflict during guide merging.
   if (is.null(lower.limit) && is.null(upper.limit)) {
+    # Both bounds open: compute global range from all gradient values.
     if (all(is.na(gradient.values))) {
       gradient.limits <- NULL
     } else {
       gradient.limits <- range(gradient.values, na.rm = TRUE)
     }
+  } else if (is.null(lower.limit) || is.null(upper.limit)) {
+    # One bound specified, one open: infer the missing bound numerically.
+    # This ensures both limits are concrete numeric values, not NA, so ggplot2 and
+    # patchwork's guide collection work correctly without creating duplicates.
+    if (all(is.na(gradient.values))) {
+      # If all gradient values are NA, use NULL and let ggplot2 handle it.
+      gradient.limits <- NULL
+    } else {
+      # Compute the global range; use specified bound if provided, otherwise use range.
+      global_min <- min(gradient.values, na.rm = TRUE)
+      global_max <- max(gradient.values, na.rm = TRUE)
+      gradient.limits <- c(
+        if (is.null(lower.limit)) global_min else lower.limit,
+        if (is.null(upper.limit)) global_max else upper.limit
+      )
+    }
   } else {
-    gradient.limits <- c(
-      if (is.null(lower.limit)) NA_real_ else lower.limit,
-      if (is.null(upper.limit)) NA_real_ else upper.limit
-    )
+    # Both bounds specified: use them directly.
+    gradient.limits <- c(lower.limit, upper.limit)
   }
 
   # Label for the gradient color scale (use raw gradient name).
@@ -663,17 +679,14 @@ FeatureScatterGradient <- function(
       if (is.na(corr.group.round)) "NA" else corr.group.round
     )
 
+    # Build per-group scatter panel mapping x, y, and gradient to aesthetics.
+    # Note that no color scale is defined here; a single shared scale is applied
+    # later at the patchwork level so all panels use identical limits and legend.
     p.group <- ggplot2::ggplot(
       df.group,
       ggplot2::aes(x = x, y = y, color = gradient)
     ) +
       ggplot2::geom_point(size = pt.size, alpha = 0.7) +
-      ggplot2::scale_color_viridis_c(
-        name = gradient.label,
-        option = scale.colors,
-        limits = gradient.limits,
-        na.value = "grey70"
-      ) +
       ggplot2::labs(
         title = current.group,
         subtitle = corr.subtitle,
@@ -683,20 +696,18 @@ FeatureScatterGradient <- function(
       ggplot2::theme_classic(base_size = 9) +
       ggplot2::theme(
         plot.title = ggplot2::element_text(
-          face = "bold",
-          size = 9,
-          hjust = 0.5
+          face = "bold", # Use bold font for group titles.
+          size = 9, # Slightly smaller title size for panels.
+          hjust = 0.5 # Center-align group titles.
         ),
         plot.subtitle = ggplot2::element_text(
-          size = 8,
-          hjust = 0.5
+          size = 8, # Subtitle size displaying correlation per group.
+          hjust = 0.5 # Center-align correlation subtitles.
         ),
-        axis.text = ggplot2::element_text(size = 7),
-        axis.title = ggplot2::element_text(size = 8),
-        # Suppress the legend in individual panels so patchwork's guides="collect"
-        # can gather a single shared legend from the first panel's scale instead of
-        # merging independent legends. Set legend.position to "none" on all but
-        # suppress the default behavior where each panel shows its own legend key.
+        axis.text = ggplot2::element_text(size = 7), # Compact axis text in panels.
+        axis.title = ggplot2::element_text(size = 8), # Axis titles slightly larger.
+        # Suppress the legend in individual panels; a single shared legend will be
+        # provided by the global color scale applied to the combined patchwork.
         legend.position = "none"
       )
 
@@ -715,17 +726,30 @@ FeatureScatterGradient <- function(
   main.title <- if (is.null(plot.title)) default.main.title else plot.title
 
   # Combine panels into a single patchwork object with shared legend.
-  # Use guides="collect" to extract and reuse the color scale from the first plot
-  # without duplicating it. The legend.position theme in the combined annotation
-  # positions the collected legend on the right side of the entire patchwork.
+  # Wrap all plots with guides="collect" to merge all color scales into one.
+  # With numerically-computed limits (no NA values), patchwork correctly merges
+  # guides from all panels without creating duplicates.
   combined <- patchwork::wrap_plots(plot.list, ncol = ncol) +
-    patchwork::plot_layout(guides = "collect") &
+    patchwork::plot_layout(guides = "collect")
+
+  # Apply a single shared viridis color scale to the combined patchwork object.
+  # Using & ensures the scale is applied uniformly to all panels, which allows
+  # patchwork's guides = "collect" to merge guides into one legend.
+  combined <- combined &
+    ggplot2::scale_color_viridis_c(
+      name = gradient.label, # Legend title uses the raw gradient feature name.
+      option = scale.colors, # Viridis palette option supplied by the caller.
+      limits = gradient.limits, # Shared numeric limits computed globally.
+      na.value = "grey70" # Color for missing gradient values.
+    )
+
+  # Apply legend positioning theme using the & operator so the single shared
+  # legend appears on the right-hand side of the combined plot.
+  combined <- combined &
     ggplot2::theme(legend.position = "right")
 
-  # Add the grouped main title through patchwork annotation rather than
-  # ggplot labels. Attaching it as a ggplot label to the combined patchwork
-  # object causes downstream ggplot build/print failures because patchwork's
-  # root plot expects title styling to live in the annotation theme.
+  # Add the grouped main title through patchwork annotation. The theme in the
+  # annotation includes only plot.title styling, not legend positioning.
   combined <- combined +
     patchwork::plot_annotation(
       title = main.title,
