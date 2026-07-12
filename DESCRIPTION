@@ -21,6 +21,9 @@ Imports:
     scales,
     BPCells,
     Azimuth
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
 URL: https://github.com/jmgs7/SCutils
 BugReports: https://github.com/jmgs7/SCutils/issues
 Config/roxygen2/version: 8.0.0

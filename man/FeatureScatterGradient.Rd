@@ -9,35 +9,171 @@ FeatureScatterGradient(
   feature1,
   feature2,
   gradient,
+  group.by = "ident",
+  scale.colors = "viridis",
+  lower.limit = NULL,
   upper.limit = NULL,
-  lower.limit = 0,
-  scale.colors = "viridis"
+  corr.method = "pearson",
+  layer1 = NULL,
+  layer2 = NULL,
+  plot.title = NULL,
+  pt.size = 0.5
 )
 }
 \arguments{
-\item{SeuratObject}{The Seurat data.}
+\item{SeuratObject}{A Seurat object.}
 
-\item{feature1}{The feature to represent on x axis.}
+\item{feature1}{Character scalar. Name of the feature to plot on the x-axis.
+Can be a metadata column, assay feature, dimensional reduction variable, or
+any variable resolvable by `Seurat::FetchData()`.}
 
-\item{feature2}{The feature to represent on y axis.}
+\item{feature2}{Character scalar. Name of the feature to plot on the y-axis.
+Same resolution rules as for `feature1`.}
 
-\item{gradient}{The feature which values will be used to set the color gradient.}
+\item{gradient}{Character scalar. Name of the feature whose values will be
+used to set the color gradient of the points. Resolved via `Seurat::FetchData()`.}
 
-\item{upper.limit}{Upper limit of the gradient. When not specified, the gradient limits are automatically set.}
+\item{group.by}{Character scalar or `NULL`. Grouping variable used to create
+per-group panels when non-`NULL`. If `NULL`, no grouping is applied and a
+single scatter plot is returned. When non-`NULL`, must be either a metadata
+column name or `"ident"`, which refers to the active identity classes and
+is resolved via `Seurat::FetchData()` using the special `"ident"` keyword.}
 
-\item{lower.limit}{Lower limit of the gradient. Default is 0. Only applicable when upper.limit is specified.}
+\item{scale.colors}{Character scalar. Viridis palette option used for the
+gradient color scale (`"magma"`, `"inferno"`, `"plasma"`, `"viridis"`,
+`"cividis"`, `"rocket"`, `"mako"`, `"turbo"` or their letter codes). Default
+is `"viridis"`.}
 
-\item{scale.colors}{Color pallette to use in the gradient. Corresponds to the color palletes codes included in scale_gradient_viridis: "magma" (or "A"), "inferno" (or "B"), "plasma" (or "C"), "viridis" (or "D"), "cividis" (or "E"), "rocket" (or "F"), "mako" (or "G"), turbo" (or "H")}
+\item{lower.limit}{Numeric scalar or `NULL`. Lower limit of the gradient
+color scale. Only applied when `upper.limit` is non-`NULL`. When `NULL`,
+the lower limit is inferred automatically by ggplot when `upper.limit` is
+also `NULL`.}
+
+\item{upper.limit}{Numeric scalar or `NULL`. Upper limit of the gradient
+color scale. When `NULL`, the gradient limits are set automatically by
+ggplot. When non-`NULL`, `lower.limit` must also be non-`NULL` and strictly
+smaller than `upper.limit`.}
+
+\item{corr.method}{Character scalar. Method used to compute the correlation
+between `feature1` and `feature2`. Accepted values are `"pearson"`
+(default), `"spearman"`, and `"kendall"`. Passed to `stats::cor()` as the
+`method` argument.}
+
+\item{layer1}{Character scalar or `NULL`. Assay layer from which `feature1`
+should be obtained (e.g. `"counts"`, `"data"`, `"scale.data"`). When
+`NULL`, Seurat's default layer is used. Empty strings and `"null"`
+(case-insensitive) are treated as `NULL`. Metadata-backed features ignore
+`layer1` at the data access level.}
+
+\item{layer2}{Character scalar or `NULL`. Assay layer from which `feature2`
+should be obtained. Semantics mirror `layer1`. Metadata-backed features
+ignore `layer2`.}
+
+\item{plot.title}{Character scalar or `NULL`. Optional custom main title for
+grouped plots. When `group.by` is `NULL`, this argument is ignored and the
+plot title is always set to the global correlation string. When `group.by`
+is non-`NULL`, this string is used as the combined patchwork title if
+provided; otherwise, the default main title is the concatenation
+`"feature1(_layer1) VS feature2(_layer2)"`.}
+
+\item{pt.size}{Numeric scalar. Point size for the scatter plot. Default is
+`0.5`.}
 }
 \value{
-A \code{ggplot2} object.
+If `group.by` is `NULL`, returns a single `ggplot2` object representing the
+scatter of `feature1` vs `feature2` with points colored by `gradient` and a
+title displaying the global correlation value.
+
+If `group.by` is non-`NULL`, returns a combined `ggplot2`/`patchwork` object
+with one panel per group level. Each panel shows the scatter of `feature1`
+vs `feature2` for that group, colored by `gradient`, and a panel title
+displaying the group-specific correlation value. The combined plot has a
+main title and shared legend.
 }
 \description{
-`FeatureScatterGradient()` adds the functionality over `Seurat::FeatureScatter()` to color the dots according a gradient determined by the value of another feature. This results very useful for visualizing QC parameters such as read count, feature count and % of mitochondrial genes simultaneously.
+`FeatureScatterGradient()` extends `Seurat::FeatureScatter()` by coloring
+each point according to a continuous gradient defined by a third feature,
+while optionally computing correlations per group and faceting by group.
+
+The function is designed to:
+- Preserve the core behaviour of `FeatureScatter`: scatter of two features
+  (`feature1` on the x-axis and `feature2` on the y-axis), correlation
+  annotation, and Seurat-like aesthetics.
+- Use `Seurat::FetchData()` for all data access, with optional per-feature
+  layer selection (`layer1`, `layer2`) to support Seurat v5 assay layers.
+- Provide grouping via `group.by`, consistent with `VlnPlotGradient()` and
+  `FeatureDensityPlot()` (grouping resolved from metadata or identity, without
+  mutating `Seurat::Idents()`).
+- Compute and display correlation values either globally or independently per
+  group, using a configurable correlation method (`corr.method`).
+
+When `group.by` is `NULL`, a single scatter plot is returned, with the title
+set to the global correlation string (e.g. `"Pearson = 0.85"`). When
+`group.by` is non-`NULL`, the function returns a combined patchwork of
+per-group scatter panels, with a main title summarising the feature pairing
+(or an optional `plot.title`) and per-panel titles showing the group-specific
+correlation values.
+
+Axis labels follow `feature_layer` naming for assay-backed features when a
+layer is specified, and plain `feature` naming for metadata-backed features,
+matching the naming conventions used in `VlnPlotGradient()` and
+`FeatureDensityPlot()`.
+}
+\details{
+**Data access**: All variables (`feature1`, `feature2`, `gradient`, and
+`group.by`) are retrieved via `Seurat::FetchData()` using a common cell
+order (`colnames(SeuratObject)`), ensuring alignment across features. Layers
+for `feature1` and `feature2` are controlled by `layer1` and `layer2`.
+When grouping is requested, cells with missing `group.by` values are excluded
+before correlations and panels are computed.
+
+**Metadata vs assay naming**: Axis labels and the default grouped main title
+follow the convention `feature_layer` for assay-backed features when a layer
+is specified, and plain `feature` for metadata-backed features. Trailing
+suffixes such as `"_"`, `"_NA"`, or `"_NULL"` are stripped for robustness,
+matching naming safeguards used in other SCutils plotting functions.
+
+**Grouping and correlation**: When `group.by` is `NULL`, correlation is
+computed across all cells using the selected `corr.method` and displayed on
+the plot. When `group.by` is non-`NULL`, correlation is recomputed separately
+for each group level and displayed in the title of each panel. Groups with
+insufficient non-NA data yield an `"NA"` correlation value.
+
+**Aesthetics**: Ungrouped plots mimic Seurat's `FeatureScatter` aesthetics
+(single panel, Seurat-like theme, point coloring), while grouped plots are
+styled to be cohesive with `FeatureDensityPlot()`
+(consistent fonts, legend placement, and patchwork layout).
 }
 \examples{
 \dontrun{
-FeatureScatterGradient(SeuratObject, feature1="nCounts", feature2="nFeatures", gradient="percent.mt", upper.limit = 100, lower.limit = 0, scale.colors = "viridis")
+# Global correlation of QC metrics colored by percent.mt
+FeatureScatterGradient(
+  SeuratObject = SeuratObject,
+  feature1     = "nCount_RNA",
+  feature2     = "nFeature_RNA",
+  gradient     = "percent.mt"
+)
+
+# Grouped scatter by identity, with per-group correlations
+FeatureScatterGradient(
+  SeuratObject = SeuratObject,
+  feature1     = "nCount_RNA",
+  feature2     = "nFeature_RNA",
+  gradient     = "percent.mt",
+  group.by     = "ident",
+  plot.title   = "QC metrics across identities"
+)
+
+# Assay-backed features from different layers, colored by metadata
+FeatureScatterGradient(
+  SeuratObject = SeuratObject,
+  feature1     = "CD3D",
+  feature2     = "CD3E",
+  gradient     = "percent.mt",
+  layer1       = "counts",
+  layer2       = "data",
+  corr.method  = "spearman"
+)
 }
 
 }

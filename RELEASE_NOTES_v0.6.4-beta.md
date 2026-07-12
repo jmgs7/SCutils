@@ -21,6 +21,7 @@ This prerelease refactors `FeatureDensityPlot()` to use standard sequential `lap
 
 ### 🧾 Documentation and package updates
 
+- Added `FeatureScatterGradient()` regression coverage for grouped and ungrouped plotting, layer-aware labels, missing-group filtering, and input validation.
 - Updated roxygen docs and regenerated package help files.
 - Updated README to reflect the lapply-only implementation.
 - Bumped package version to `0.6.4`.
