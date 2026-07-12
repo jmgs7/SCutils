@@ -344,12 +344,55 @@ FeatureDensityPlot <- function(
     }
   }
 
-  # We will the define the plot nlames based on the features and the layer used for each feature. This is important for cases where the same feature name is used with different layers, as it ensures that each plot has a unique name.
-  # This variable will be also used to name the plots in the returned list, ensuring that each plot can be easily identified based on the feature and layer used.
-  plot.names <- paste0(features, "_", layer.per.feature)
-  plot.names <- gsub("_+$", "", plot.names) # Remove trailing underscores if layer is NULL
-  plot.names <- gsub("_NULL$", "", plot.names) # Remove trailing _NULL if layer is "NULL" (string)
-  plot.names <- gsub("_NA$", "", plot.names) # Remove trailing _NA if layer is NA
+  # Build plot/list names as feature-layer labels.
+  #
+  # Why this block exists:
+  # - Users may request the same feature multiple times with different layers.
+  # - Appending the layer keeps those outputs distinguishable in the returned list.
+  # - Metadata columns do not conceptually belong to assay layers, so layer suffixes
+  #   are removed for metadata features to keep names clean and intuitive.
+  #
+  # Efficiency note:
+  # - We retrieve metadata column names exactly once.
+  # - Membership checks are vectorized with `%in%`.
+
+  # Retrieve metadata column names once (cheap, reused immediately below).
+  metadata.colnames <- colnames(SeuratObject@meta.data)
+
+  # Convert per-feature layer entries to display strings in feature order.
+  # We map explicit NULL entries to "NULL" so each position has a string.
+  layer.labels <- vapply(
+    layer.per.feature,
+    function(x) {
+      if (is.null(x)) {
+        return("NULL")
+      }
+      as.character(x)
+    },
+    FUN.VALUE = character(1)
+  )
+
+  # Initial names include layer suffix for every feature occurrence.
+  plot.names <- paste0(features, "_", layer.labels)
+
+  # Identify metadata features once using vectorized lookup.
+  # This is done by feature name (user-facing), not internal keys.
+  is.metadata.feature <- features %in% metadata.colnames
+
+  # For metadata features, remove the trailing layer suffix (`_<layer>`).
+  # This intentionally strips exactly one terminal suffix and leaves the base
+  # feature name intact, even if the feature string contains underscores.
+  plot.names[is.metadata.feature] <- sub(
+    "_[^_]*$",
+    "",
+    plot.names[is.metadata.feature]
+  )
+
+  # Keep legacy cleanup so edge cases remain robust when layer labels are empty,
+  # NA-derived, or NULL-derived strings.
+  plot.names <- gsub("_+$", "", plot.names)
+  plot.names <- gsub("_NULL$", "", plot.names)
+  plot.names <- gsub("_NA$", "", plot.names)
 
   # Titles stay user-facing and index-aligned to features.
   feature.titles <- if (is.null(plot.title)) {
