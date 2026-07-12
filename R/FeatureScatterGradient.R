@@ -290,30 +290,6 @@ FeatureScatterGradient <- function(
     ))
   }
 
-  # Validate layer1: NULL or single character.
-  if (!is.null(layer1)) {
-    if (!is.character(layer1) || length(layer1) != 1L) {
-      stop("'layer1' must be NULL, NA, or a single non-NA character value.")
-    }
-  }
-
-  # Validate layer2: NULL or single character.
-  if (!is.null(layer2)) {
-    if (!is.character(layer2) || length(layer2) != 1L) {
-      stop("'layer2' must be NULL, NA, or a single non-NA character value.")
-    }
-  }
-
-  # Validate layer.gradient: NULL, NA or single character.
-  if (!is.null(layer.gradient)) {
-    if (
-      !is.character(layer.gradient) ||
-        length(layer.gradient) != 1L
-    ) {
-      stop("'layer.gradient' must be NULL, NA, or a single character value.")
-    }
-  }
-
   # Validate plot.title: NULL or single character.
   if (!is.null(plot.title)) {
     if (
@@ -327,14 +303,33 @@ FeatureScatterGradient <- function(
   # already accepted elsewhere in SCutils (`NA` is rejected above because these
   # arguments are scalar-only, but empty strings and "null" should behave like
   # an omitted layer rather than being forwarded to FetchData()).
-  normalizeSingleLayer <- function(layer.value) {
-    layer.value.lower <- tolower(layer.value)
-    if (layer.value.lower %in% c("", "null") || is.na(layer.value.lower)) {
+  normalizeSingleLayer <- function(layer.value, arg.name) {
+    if (is.null(layer.value)) {
       return(NULL)
     }
-    
+
+    if (is.na(layer.value)) {
+      return(NULL)
+    }
+
+    if (!is.character(layer.value) || length(layer.value) != 1L) {
+      stop(sprintf(
+        "'%s' must be NULL, NA or a single character value.",
+        arg.name
+      ))
+    }
+
+    layer.value.lower <- tolower(layer.value)
+    if (layer.value.lower %in% c("", "null")) {
+      return(NULL)
+    }
+
     return(layer.value)
   }
+
+  layer1 <- normalizeSingleLayer(layer1, "layer1")
+  layer2 <- normalizeSingleLayer(layer2, "layer2")
+  layer.gradient <- normalizeSingleLayer(layer.gradient, "layer.gradient")
 
   # Apply layer normalization once so both FetchData access and axis-label
   # construction use the same resolved layer semantics.

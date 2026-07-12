@@ -7,7 +7,7 @@
 VlnPlotGradient(
   SeuratObject,
   features,
-  gradient,
+  gradient = "nCells",
   group.by = "ident",
   scale.colors = "viridis",
   lower.limit = 0,
@@ -15,6 +15,7 @@ VlnPlotGradient(
   pt.size = 0,
   ncol = NULL,
   layer = NULL,
+  layer.gradient = NULL,
   plot.title = NULL
 )
 }
@@ -27,8 +28,8 @@ metadata column name, an assay feature name, or any variable retrievable via
 "PC_1" or the special keyword "ident").}
 
 \item{gradient}{Character scalar. The feature used to compute the per-group
-gradient value. Use "nCells" to color by the number of cells per group
-(identity). Any metadata column or feature name resolvable by
+gradient value. Use "nCells" (default) to color by the number of cells per
+group (identity). Any metadata column or feature name resolvable by
 `Seurat::FetchData()` is also accepted; its mean per group is used.}
 
 \item{group.by}{Character scalar or `NULL`. Name of the grouping variable
@@ -59,13 +60,15 @@ patchwork layout. When `NULL`, the number of columns equals
 stretching.}
 
 \item{layer}{Character scalar or vector, `NA` or `NULL`. Assay layer(s) used
-to retrieve feature expression values. When `NA`or `NULL`, Seurat's default 
-layer resolution is used. When a length-1 character vector is supplied, the 
-same layer is applied to all features. When a character vector of length 
+to retrieve feature expression values. When `NA`or `NULL`, Seurat's default
+layer resolution is used. When a length-1 character vector is supplied, the
+same layer is applied to all features. When a character vector of length
 equal to `length(features)` is supplied, each feature uses its corresponding
 layer entry. Entries that are "null" (case-insensitive), or empty
 strings are treated as `NULL` for that feature. Metadata-backed features
 ignore `layer` at the data access level, but assay-backed features obey it.}
+
+\item{layer.gradient}{Character scalar, `NA` or `NULL`. Assay layer used to #'   retrieve the gradient feature values.}
 
 \item{plot.title}{Optional custom title(s). `NULL` uses internally generated
 per-feature names (metadata features use `feature`; assay features use
