@@ -96,5 +96,6 @@ CalculateQC <- function(SeuratObject) {
       unlist()
   }
 
+  ##TODO: Add cell cycle scoring and MALAT1 test.
   return(SeuratObject)
 }
