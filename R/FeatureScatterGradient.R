@@ -10,7 +10,8 @@
 #'   (`feature1` on the x-axis and `feature2` on the y-axis), correlation
 #'   annotation, and Seurat-like aesthetics.
 #' - Use `Seurat::FetchData()` for all data access, with optional per-feature
-#'   layer selection (`layer1`, `layer2`) to support Seurat v5 assay layers.
+#'   layer selection (`layer1`, `layer2`, `layer.gradient`) to support Seurat
+#'   v5 assay layers.
 #' - Provide grouping via `group.by`, consistent with `VlnPlotGradient()` and
 #'   `FeatureDensityPlot()` (grouping resolved from metadata or identity, without
 #'   mutating `Seurat::Idents()`).
@@ -36,7 +37,8 @@
 #' @param feature2 Character scalar. Name of the feature to plot on the y-axis.
 #'   Same resolution rules as for `feature1`.
 #' @param gradient Character scalar. Name of the feature whose values will be
-#'   used to set the color gradient of the points. Resolved via `Seurat::FetchData()`.
+#'   used to set the color gradient of the points. Resolved via
+#'   `Seurat::FetchData()`.
 #' @param group.by Character scalar or `NULL`. Grouping variable used to create
 #'   per-group panels when non-`NULL`. If `NULL`, no grouping is applied and a
 #'   single scatter plot is returned. When non-`NULL`, must be either a metadata
@@ -47,13 +49,11 @@
 #'   `"cividis"`, `"rocket"`, `"mako"`, `"turbo"` or their letter codes). Default
 #'   is `"viridis"`.
 #' @param lower.limit Numeric scalar or `NULL`. Lower limit of the gradient
-#'   color scale. Only applied when `upper.limit` is non-`NULL`. When `NULL`,
-#'   the lower limit is inferred automatically from the data when `upper.limit`
-#'   is also `NULL`.
+#'   color scale. When `NULL`, the lower bound is left open and is inferred by
+#'   `ggplot2` from the data.
 #' @param upper.limit Numeric scalar or `NULL`. Upper limit of the gradient
-#'   color scale. When `NULL`, the gradient limits are set automatically from
-#'   the data. When non-`NULL`, `lower.limit` must also be non-`NULL` and strictly
-#'   smaller than `upper.limit`.
+#'   color scale. When `NULL`, the upper bound is left open and is inferred by
+#'   `ggplot2` from the data.
 #' @param corr.method Character scalar. Method used to compute the correlation
 #'   between `feature1` and `feature2`. Accepted values are `"pearson"`
 #'   (default), `"spearman"`, and `"kendall"`. Passed to `stats::cor()` as the
@@ -66,6 +66,9 @@
 #' @param layer2 Character scalar or `NULL`. Assay layer from which `feature2`
 #'   should be obtained. Semantics mirror `layer1`. Metadata-backed features
 #'   ignore `layer2`.
+#' @param layer.gradient Character scalar or `NULL`. Assay layer from which
+#'   `gradient` should be obtained. Semantics mirror `layer1`. Metadata-backed
+#'   features ignore `layer.gradient`.
 #' @param plot.title Character scalar or `NULL`. Optional custom main title for
 #'   grouped plots. When `group.by` is `NULL`, this argument is ignored and the
 #'   plot title is always set to the global correlation string. When `group.by`
@@ -91,7 +94,8 @@
 #' **Data access**: All variables (`feature1`, `feature2`, `gradient`, and
 #' `group.by`) are retrieved via `Seurat::FetchData()` using a common cell
 #' order (`colnames(SeuratObject)`), ensuring alignment across features. Layers
-#' for `feature1` and `feature2` are controlled by `layer1` and `layer2`.
+#' for `feature1`, `feature2`, and `gradient` are controlled by `layer1`,
+#' `layer2`, and `layer.gradient`.
 #' When grouping is requested, cells with missing `group.by` values are excluded
 #' before correlations and panels are computed.
 #'
@@ -109,10 +113,11 @@
 #' an `"NA"` correlation value.
 #'
 #' **Gradient scaling across groups**: In grouped mode, the gradient color scale
-#' is computed globally from all `gradient` values (unless limits are provided
-#' via `lower.limit` and `upper.limit`). This ensures that the same scale and
-#' single legend are used across all group panels, making gradients directly
-#' comparable between groups.
+#' is computed globally from all `gradient` values unless `lower.limit`,
+#' `upper.limit`, or both are supplied. Limits are passed to ggplot2 as
+#' `c(lower.limit, upper.limit)`, so either side can remain open (`NULL`) and
+#' be inferred from the data while preserving a single shared scale and legend
+#' across all panels.
 #'
 #' **Aesthetics**: Ungrouped plots mimic Seurat's `FeatureScatter` aesthetics
 #' (single panel, Seurat-like theme, point coloring), while grouped plots are
@@ -168,7 +173,8 @@ FeatureScatterGradient <- function(
   layer1 = NULL,
   layer2 = NULL,
   plot.title = NULL,
-  pt.size = 0.5
+  pt.size = 0.5,
+  layer.gradient = NULL
 ) {
   # Validate Seurat object: required for FetchData semantics and structure.
   if (!inherits(SeuratObject, "Seurat")) {
@@ -218,7 +224,7 @@ FeatureScatterGradient <- function(
     }
   }
 
-  # Validate upper.limit: NULL or single numeric, and greater than lower.limit when both are set.
+  # Validate upper.limit: NULL or single numeric.
   if (!is.null(upper.limit)) {
     if (
       !is.numeric(upper.limit) ||
@@ -227,9 +233,10 @@ FeatureScatterGradient <- function(
     ) {
       stop("'upper.limit' must be NULL or a single non-NA numeric value.")
     }
-    if (is.null(lower.limit)) {
-      stop("'lower.limit' must be specified when 'upper.limit' is non-NULL.")
-    }
+  }
+
+  # Validate joint ordering only when both limits are user-specified.
+  if (!is.null(lower.limit) && !is.null(upper.limit)) {
     if (upper.limit <= lower.limit) {
       stop("'upper.limit' must be strictly greater than 'lower.limit'.")
     }
@@ -299,6 +306,17 @@ FeatureScatterGradient <- function(
     }
   }
 
+  # Validate layer.gradient: NULL or single character.
+  if (!is.null(layer.gradient)) {
+    if (
+      !is.character(layer.gradient) ||
+        length(layer.gradient) != 1L ||
+        is.na(layer.gradient)
+    ) {
+      stop("'layer.gradient' must be NULL or a single non-NA character value.")
+    }
+  }
+
   # Validate plot.title: NULL or single character.
   if (!is.null(plot.title)) {
     if (
@@ -329,6 +347,8 @@ FeatureScatterGradient <- function(
   # construction use the same resolved layer semantics.
   layer1 <- normalizeSingleLayer(layer1)
   layer2 <- normalizeSingleLayer(layer2)
+  # Normalize gradient layer with the same sentinel handling as other layers.
+  layer.gradient <- normalizeSingleLayer(layer.gradient)
 
   # Helper to format correlation method label for titles (capitalised).
   formatMethodLabel <- function(method.name) {
@@ -492,11 +512,12 @@ FeatureScatterGradient <- function(
     cells.use = cells.use
   )
 
-  # Fetch gradient values (always from default layer).
+  # Fetch gradient values with optional layer.gradient. This allows callers to
+  # color points using a specific assay layer while preserving metadata support.
   gradient.values <- fetchFeatureValues(
     object = SeuratObject,
     feature.name = gradient,
-    layer.value = NULL,
+    layer.value = layer.gradient,
     cells.use = cells.use
   )
 
@@ -514,17 +535,21 @@ FeatureScatterGradient <- function(
   )
 
   # Determine gradient scale limits:
-  # - If user provided limits, use those.
-  # - Otherwise, compute global limits from all gradient values so that grouped
-  #   panels share a common scale and legend.
-  if (!is.null(upper.limit)) {
-    gradient.limits <- c(lower.limit, upper.limit)
-  } else {
+  # - If neither bound is provided, use data-derived global limits.
+  # - If one or both bounds are provided, pass them directly to ggplot2 using
+  #   NA for open bounds so ggplot2 can infer the missing side from the data.
+  #   This keeps grouped panels on a shared, comparable scale.
+  if (is.null(lower.limit) && is.null(upper.limit)) {
     if (all(is.na(gradient.values))) {
       gradient.limits <- NULL
     } else {
       gradient.limits <- range(gradient.values, na.rm = TRUE)
     }
+  } else {
+    gradient.limits <- c(
+      if (is.null(lower.limit)) NA_real_ else lower.limit,
+      if (is.null(upper.limit)) NA_real_ else upper.limit
+    )
   }
 
   # Label for the gradient color scale (use raw gradient name).

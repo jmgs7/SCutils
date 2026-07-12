@@ -17,7 +17,8 @@ FeatureScatterGradient(
   layer1 = NULL,
   layer2 = NULL,
   plot.title = NULL,
-  pt.size = 0.5
+  pt.size = 0.5,
+  layer.gradient = NULL
 )
 }
 \arguments{
@@ -45,14 +46,12 @@ gradient color scale (`"magma"`, `"inferno"`, `"plasma"`, `"viridis"`,
 is `"viridis"`.}
 
 \item{lower.limit}{Numeric scalar or `NULL`. Lower limit of the gradient
-color scale. Only applied when `upper.limit` is non-`NULL`. When `NULL`,
-the lower limit is inferred automatically by ggplot when `upper.limit` is
-also `NULL`.}
+color scale. When `NULL`, the lower bound is left open and is inferred by
+`ggplot2` from the data.}
 
 \item{upper.limit}{Numeric scalar or `NULL`. Upper limit of the gradient
-color scale. When `NULL`, the gradient limits are set automatically by
-ggplot. When non-`NULL`, `lower.limit` must also be non-`NULL` and strictly
-smaller than `upper.limit`.}
+color scale. When `NULL`, the upper bound is left open and is inferred by
+`ggplot2` from the data.}
 
 \item{corr.method}{Character scalar. Method used to compute the correlation
 between `feature1` and `feature2`. Accepted values are `"pearson"`
@@ -68,6 +67,10 @@ should be obtained (e.g. `"counts"`, `"data"`, `"scale.data"`). When
 \item{layer2}{Character scalar or `NULL`. Assay layer from which `feature2`
 should be obtained. Semantics mirror `layer1`. Metadata-backed features
 ignore `layer2`.}
+
+\item{layer.gradient}{Character scalar or `NULL`. Assay layer from which
+`gradient` should be obtained. Semantics mirror `layer1`. Metadata-backed
+features ignore `layer.gradient`.}
 
 \item{plot.title}{Character scalar or `NULL`. Optional custom main title for
 grouped plots. When `group.by` is `NULL`, this argument is ignored and the
@@ -100,7 +103,8 @@ The function is designed to:
   (`feature1` on the x-axis and `feature2` on the y-axis), correlation
   annotation, and Seurat-like aesthetics.
 - Use `Seurat::FetchData()` for all data access, with optional per-feature
-  layer selection (`layer1`, `layer2`) to support Seurat v5 assay layers.
+  layer selection (`layer1`, `layer2`, `layer.gradient`) to support Seurat
+  v5 assay layers.
 - Provide grouping via `group.by`, consistent with `VlnPlotGradient()` and
   `FeatureDensityPlot()` (grouping resolved from metadata or identity, without
   mutating `Seurat::Idents()`).
@@ -123,7 +127,8 @@ matching the naming conventions used in `VlnPlotGradient()` and
 **Data access**: All variables (`feature1`, `feature2`, `gradient`, and
 `group.by`) are retrieved via `Seurat::FetchData()` using a common cell
 order (`colnames(SeuratObject)`), ensuring alignment across features. Layers
-for `feature1` and `feature2` are controlled by `layer1` and `layer2`.
+for `feature1`, `feature2`, and `gradient` are controlled by `layer1`,
+`layer2`, and `layer.gradient`.
 When grouping is requested, cells with missing `group.by` values are excluded
 before correlations and panels are computed.
 
