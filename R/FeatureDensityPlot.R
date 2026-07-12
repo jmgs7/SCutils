@@ -22,7 +22,7 @@
 #' @param features Character vector of features to plot (metadata columns, assay
 #'   feature names, or reduction variable names like `"PC_1"`).
 #' @param group.by Character scalar. Grouping variable: a metadata column name,
-#'   `"active.ident"` (default), or `NULL` for no grouping.
+#'   `"ident"` (default, SeuratObject$active.ident), or `NULL` for no grouping.
 #' @param split.plot Logical. If `TRUE` (default), creates one panel per group level
 #'   for each feature. If `FALSE`, groups are overlaid in one panel per feature.
 #' @param scale.colors Character scalar. Viridis palette option used for grouped
@@ -279,7 +279,7 @@ FeatureDensityPlot <- function(
     if (!is.character(group.by) || length(group.by) != 1L) {
       stop("'group.by' must be NULL or a single character value.")
     }
-    group.fetch.var <- if (group.by == "active.ident") "ident" else group.by
+    group.fetch.var <- group.by
     group.data <- Seurat::FetchData(
       object = SeuratObject,
       vars = group.fetch.var,
