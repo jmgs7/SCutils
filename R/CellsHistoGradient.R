@@ -1,5 +1,5 @@
 #' Create a Histogram with Gradient Colors for Cell Counts.
-#' 
+#'
 #' @name CellsHistoGradient
 #' @description Generates a bar plot showing the number of cells per group in a Seurat object, with bars colored by a gradient based on cell count.
 #'
@@ -26,25 +26,26 @@
 #' # Customize breaks
 #' CellsHistoGradient(seurat_obj, group.by = "annotation", breaks = seq(0, 1000, by = 100))
 #' }
-#' 
+#'
 #' @import dplyr
 #' @import ggplot2
 #' @import Seurat
-#' 
+#'
 #' @export
 
-CellsHistoGradient <- function(SeuratObject, group.by = NULL, scale.colors = "viridis", breaks = scales::extended_breaks()) {
-
+CellsHistoGradient <- function(
+  SeuratObject,
+  group.by = NULL,
+  scale.colors = "viridis",
+  breaks = scales::extended_breaks()
+) {
   if (is.null(group.by)) {
-
     group.by <- "SeuratObject@active.ident"
     cells_per_feature <- as.data.frame(SeuratObject@active.ident) %>%
       group_by(.data[[group.by]]) %>%
       summarise(Cells = n()) %>%
       arrange(desc(Cells))
-
   } else {
-
     cells_per_feature <- SeuratObject@meta.data %>%
       group_by(.data[[group.by]]) %>%
       summarise(Cells = n()) %>%
@@ -68,6 +69,6 @@ CellsHistoGradient <- function(SeuratObject, group.by = NULL, scale.colors = "vi
       legend.position = "none",
       axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)
     )
-    
+
   return(p)
 }

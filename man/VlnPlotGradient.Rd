@@ -8,70 +8,158 @@ VlnPlotGradient(
   SeuratObject,
   features,
   gradient,
-  group.by = NULL,
+  group.by = "ident",
   scale.colors = "viridis",
   lower.limit = 0,
   upper.limit = NULL,
   pt.size = 0,
-  ncol = NULL
+  ncol = NULL,
+  layer = NULL,
+  plot.title = NULL
 )
 }
 \arguments{
 \item{SeuratObject}{A Seurat object.}
 
-\item{features}{Character vector of features to plot (gene names or metadata columns).}
+\item{features}{Character vector of features to plot. Each entry can be a
+metadata column name, an assay feature name, or any variable retrievable via
+`Seurat::FetchData()` (including dimensional reduction variables such as
+"PC_1" or the special keyword "ident").}
 
-\item{gradient}{Character string. The feature used to compute the per-identity
-color value. Use \code{"nCells"} to color by the number of cells per identity.
-Any metadata column or gene is also accepted (its mean per identity is used).}
+\item{gradient}{Character scalar. The feature used to compute the per-group
+gradient value. Use "nCells" to color by the number of cells per group
+(identity). Any metadata column or feature name resolvable by
+`Seurat::FetchData()` is also accepted; its mean per group is used.}
 
-\item{group.by}{Character string. Metadata column to group cells by. If NULL
-(default), uses the active identity (\code{Idents(SeuratObject)}).}
+\item{group.by}{Character scalar or `NULL`. Name of the grouping variable
+used for the x-axis identities. When `group.by = "ident"` (default), the
+active identity classes are pulled via `Seurat::FetchData()` using the
+special "ident" keyword. When `group.by` is a metadata column name, that
+column is used instead. If `group.by` is `NULL`, identities are set from
+the active identity via "ident".}
 
-\item{scale.colors}{Character string. Viridis palette to use for the gradient.
-One of \code{"magma"} / \code{"A"}, \code{"inferno"} / \code{"B"},
-\code{"plasma"} / \code{"C"}, \code{"viridis"} / \code{"D"},
-\code{"cividis"} / \code{"E"}, \code{"rocket"} / \code{"F"},
-\code{"mako"} / \code{"G"}, \code{"turbo"} / \code{"H"}.
-Default is \code{"viridis"}.}
+\item{scale.colors}{Character scalar. Viridis palette option used for the
+gradient scales. Accepted values include "magma" / "A", "inferno" / "B",
+"plasma" / "C", "viridis" / "D", "cividis" / "E", "rocket" / "F",
+"mako" / "G", "turbo" / "H". Default is "viridis".}
 
-\item{lower.limit}{Numeric. Lower limit of the gradient scale.
-Default is \code{0}. Only applied when \code{upper.limit} is specified.}
+\item{lower.limit}{Numeric scalar. Lower limit of the gradient scale. Only
+applied when `upper.limit` is non-`NULL`. Default is `0`.}
 
-\item{upper.limit}{Numeric or NULL. Upper limit of the gradient scale.
-When \code{NULL} (default), limits are set automatically.}
+\item{upper.limit}{Numeric scalar or `NULL`. Upper limit of the gradient
+scale. When `NULL` (default), limits are set automatically by ggplot.}
 
-\item{pt.size}{Numeric. Size of the jittered points overlaid on the violins.
-Default is \code{0} (hide points).}
+\item{pt.size}{Numeric scalar. Size of jittered points overlaid on the
+violins. When `0` (default), no points are drawn. Values greater than
+`0` enable `geom_jitter()` overlays.}
 
-\item{ncol}{Integer or NULL. Number of columns in the combined plot.
-If NULL, Seurat's default (number of features) is used.}
+\item{ncol}{Integer scalar or `NULL`. Number of columns in the combined
+patchwork layout. When `NULL`, the number of columns equals
+`length(features)`, but if `length(features) > 5`, the number of columns #'   is set to `ceiling(sqrt(length(features)))` to avoid excessive horizontal
+stretching.}
+
+\item{layer}{Character scalar or vector, or `NULL`. Assay layer(s) used to
+retrieve feature expression values. When `NULL`, Seurat's default layer
+resolution is used. When a length-1 character vector is supplied, the same
+layer is applied to all features. When a character vector of length equal
+to `length(features)` is supplied, each feature uses its corresponding
+layer entry. Entries that are `NA`, "null" (case-insensitive), or empty
+strings are treated as `NULL` for that feature. Metadata-backed features
+ignore `layer` at the data access level, but assay-backed features obey it.}
+
+\item{plot.title}{Optional custom title(s). `NULL` uses internally generated
+per-feature names (metadata features use `feature`; assay features use
+`feature_layer` when layer is provided). A length-1 string is recycled to
+all features. A character vector with length equal to `length(features)`
+applies one title per feature.}
 }
 \value{
-A \code{ggplot2} / \code{patchwork} object.
+A single `ggplot2` / `patchwork` object with one violin panel per
+  requested feature. The panels share a common gradient legend, and the x-axis
+  identities are ordered from highest to lowest gradient value.
 }
 \description{
-`VlnPlotGradient()` extends `Seurat::VlnPlot()` functionality
-  by coloring each violin plot with a gradient based on the per-identity value
-  of a given feature. Particularly useful for visualizing QC metrics (nCount_RNA,
-  nFeature_RNA, percent.mt) simultaneously while coloring by number of cells per
-  identity or any other aggregated feature value.
+`VlnPlotGradient()` extends `Seurat::VlnPlot()` functionality by coloring each
+single-cell violin plot with a continuous gradient that encodes a per-group
+summary of a feature (for example, number of cells per identity or the mean
+expression of a marker gene).
+
+The function is designed to match the visual aesthetics and combined-output
+behaviour of `Seurat::VlnPlot()` while providing a more flexible backend:
+- Data access is based entirely on `Seurat::FetchData()`, which can retrieve
+  metadata columns, dimensional reduction variables (e.g. `PC_1`), and assay
+  features from arbitrary layers (such as "counts", "data", or
+  "scale.data") in Seurat v5 objects.
+- Per-feature assay layer selection is supported via the `layer` argument,
+  closely mirroring the behaviour of `FeatureDensityPlot()`.
+- Optional custom per-feature titles are supported via `plot.title`.
+- Grouping is controlled via `FetchData()` (using the special keyword
+  "ident" for active identities), avoiding any temporary changes to
+  `Seurat::Idents()` and keeping identity classes stable.
+
+Titles for individual violins are constructed from the feature name and the
+per-feature layer choice. Metadata-backed features (columns in
+`SeuratObject@meta.data`) never receive a layer suffix, while assay-backed
+features appended with an underscore and the chosen layer (e.g. `CD3D_counts`
+or `CD3D_data`). This behaviour matches the `FeatureDensityPlot()` semantics
+while preserving the single combined plot output of `Seurat::VlnPlot()`.
+}
+\details{
+**Data access**: All feature and grouping values are retrieved via
+`Seurat::FetchData()`. Grouping uses the `group.by` variable, which defaults
+to "ident" (the active identities). Gradient values are computed either as
+cell counts per group (for `gradient = "nCells"`) or as mean feature values
+per group (for any other gradient feature). Feature expression values for
+the violins are fetched per feature using the optional `layer` argument.
+
+**Layer handling**: The `layer` parameter mirrors `FeatureDensityPlot()`.
+A length-1 character value applies to all features; a vector matching
+`length(features)` specifies per-feature layers. Metadata columns ignore
+`layer` when fetching data. For assay-backed features, the default title of
+each violin is constructed as `feature_layer` when a non-`NULL` layer is
+used; metadata-backed features retain bare names without any suffix.
+
+**Title handling**: `plot.title = NULL` preserves the historical naming
+behaviour (`feature_layer` for assay-backed features with layer, `feature`
+otherwise). A length-1 `plot.title` is recycled to all features, and a
+length-`length(features)` vector maps one custom title per feature.
+
+**Efficiency**: A top-level `lapply()` iterates over features to build the
+per-feature violin panels. Data extraction is performed per feature via
+`FetchData()`, and grouping / gradient values are computed once and reused
+across features. There are no explicit cell-wise loops; all operations work
+on vectors or small data frames.
+
+**Output**: Unlike `FeatureDensityPlot()`, `VlnPlotGradient()` always returns
+a single combined `ggplot2` / `patchwork` object, matching the default
+behaviour of `Seurat::VlnPlot()` when `combine = TRUE`.
 }
 \examples{
+
 \dontrun{
+# QC metrics colored by number of cells per identity
 VlnPlotGradient(
   SeuratObject,
   features = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
   gradient = "nCells"
 )
 
+# Mixed metadata and assay features, with per-feature layers
 VlnPlotGradient(
   SeuratObject,
-  features = c("CD3D", "CD8A"),
+  features = c("percent.mt", "CD3D"),
   gradient = "nCount_RNA",
-  group.by = "seurat_clusters",
-  scale.colors = "plasma",
-  upper.limit = 5000
+  group.by = "ident",
+  layer = c(NA, "counts")
+)
+
+# Duplicate gene with different layers, both plotted side-by-side
+VlnPlotGradient(
+  SeuratObject,
+  features = c("CD3D", "CD3D"),
+  gradient = "CD3D",
+  group.by = "ident",
+  layer = c("counts", "data")
 )
 }
 

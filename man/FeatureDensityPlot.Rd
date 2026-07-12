@@ -7,11 +7,12 @@
 FeatureDensityPlot(
   SeuratObject,
   features,
-  group.by = "active.ident",
+  group.by = "ident",
   split.plot = TRUE,
   scale.colors = "viridis",
   ncol = NULL,
   vline = NULL,
+  layer = NULL,
   plot.median = TRUE,
   plot.title = NULL,
   nmad = 2,
@@ -22,10 +23,11 @@ FeatureDensityPlot(
 \arguments{
 \item{SeuratObject}{A Seurat object.}
 
-\item{features}{Character vector of metadata columns to plot on the x-axis.}
+\item{features}{Character vector of features to plot (metadata columns, assay
+feature names, or reduction variable names like `"PC_1"`).}
 
-\item{group.by}{Character scalar. Grouping variable. Use a metadata column name,
-`"active.ident"` (default), or `NULL` for no grouping.}
+\item{group.by}{Character scalar. Grouping variable: a metadata column name,
+`"ident"` (default, SeuratObject$active.ident), or `NULL` for no grouping.}
 
 \item{split.plot}{Logical. If `TRUE` (default), creates one panel per group level
 for each feature. If `FALSE`, groups are overlaid in one panel per feature.}
@@ -39,8 +41,15 @@ feature plot when `split.plot = TRUE`. If `NULL`, inferred automatically.}
 
 \item{vline}{Optional reference-line specification (drawn in dashed red).
 Accepted values: `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`,
-`"both"`, or a numeric value. `"upper"`, `"lower"`, and `"both"` use
-median +/- `nmad`*MAD.}
+`"both"`, a numeric value, or a character vector with one entry per feature.
+For vector input, each element follows the same rules as the scalar form.
+`"upper"`, `"lower"`, and `"both"` use median +/- `nmad`*MAD.
+A length-1 vector is recycled to all features.}
+
+\item{layer}{Character or `NULL`. Specifies which assay layer to extract feature
+values from (e.g., `"data"`, `"counts"`, `"scale.data"`). `NULL` uses the
+default layer. May be a single string (applied to all features) or a character
+vector of length equal to `features` (per-feature layer specification).}
 
 \item{plot.median}{Logical. If `TRUE` (default), draws median line(s) in dashed
 black, independently of `vline`.}
@@ -63,10 +72,12 @@ If `length(features) == 1`, returns a `ggplot2`/`patchwork` plot object.
   list names equal `features`).
 }
 \description{
-`FeatureDensityPlot()` draws density plots for one or more metadata features from a
-Seurat object without splitting the object. Grouping is resolved directly from
-`SeuratObject@meta.data` (or from `active.ident`), which avoids expensive object
-partitioning for large datasets.
+`FeatureDensityPlot()` draws density plots for features from a Seurat object
+without splitting the object. It supports metadata columns, assay features
+(from any layer), and dimensional reduction variables via `Seurat::FetchData()`.
+
+Grouping is resolved from the specified `group.by` variable, avoiding expensive
+object partitioning for large datasets.
 
 The function supports:
 - overlayed grouped densities,
@@ -74,24 +85,27 @@ The function supports:
 - optional vertical reference lines (`vline`) in dashed red,
 - optional independent median overlays (`plot.median`) in dashed black,
 - custom plot titles via `plot.title`,
-- multi-feature output as a named list (one plot per feature).
+- multi-feature output as a named list (one plot per feature),
+- per-feature layer selection via `layer`.
 
-The implementation is sequential and uses base `lapply()`.
+The implementation uses sequential base `lapply()` for efficiency.
 }
 \details{
-This function intentionally uses sequential base `lapply()`.
+**Data access**: Features are resolved via `Seurat::FetchData()`, which tries
+metadata columns first, then keyed variables, then assay features, then the
+special `ident` keyword.
 
-Efficiency design:
-- A top-level `lapply()` iterates over `features`.
-- A second nested `lapply()` is used only when `split.plot = TRUE` to iterate over
-  groups within each feature.
+**Layer handling**: When `layer` is a vector of different values, each feature
+is fetched with its assigned layer. Metadata columns ignore the layer parameter;
+assay features use it to select the desired matrix.
 
-This conditional nested structure avoids building a global feature-by-group task
-table and avoids costly post-hoc reassembly. In sequential execution, it keeps
-per-feature data local and reduces indexing overhead while preserving readability.
+**Efficiency**: A top-level `lapply()` iterates over features. A second nested
+`lapply()` is used only when `split.plot = TRUE` to iterate over group levels.
+This structure keeps per-feature data local and reduces indexing overhead.
 }
 \examples{
 \dontrun{
+# Metadata-only (backward compatible)
 plot.list <- FeatureDensityPlot(
   SeuratObject,
   features = c("percent.mt", "nCount_RNA"),
@@ -101,10 +115,18 @@ plot.list <- FeatureDensityPlot(
   plot.median = TRUE
 )
 
+# Assay features from log-normalized data
 FeatureDensityPlot(
   SeuratObject,
-  features = "percent.mt",
-  plot.title = "Mitochondrial Percentage Density"
+  features = "CD3D",
+  layer = "data"
+)
+
+# Mixed per-feature layers
+FeatureDensityPlot(
+  SeuratObject,
+  features = c("percent.mt", "CD3D", "nCount_RNA"),
+  layer = c(NA, "counts", NA)  # CD3D from raw counts, others from metadata
 )
 }
 

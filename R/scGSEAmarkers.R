@@ -15,28 +15,35 @@
 #' @import fgsea
 #' @export
 
-scGSEAmarkers <- function(cluster_markers, reference_markers, padj.threshold=1e-6, only.pos=TRUE, workers=4) {
-
+scGSEAmarkers <- function(
+  cluster_markers,
+  reference_markers,
+  padj.threshold = 1e-6,
+  only.pos = TRUE,
+  workers = 4
+) {
   result <- list()
   cluster_list <- as.character(unique(cluster_markers$cluster))
 
   for (current_cluster in cluster_list) {
-
-    cluster_stats  <- cluster_markers %>%
+    cluster_stats <- cluster_markers %>%
       filter(cluster == current_cluster) %>%
       arrange(-avg_log2FC) %>%
       select(c(gene, avg_log2FC)) %>%
       tibble::deframe()
 
-
-    res <- fgsea(pathways = reference_markers,
-                 stats = cluster_stats,
-                 BPPARAM = BiocParallel::MulticoreParam(workers=workers)
-    ) %>% filter(padj < padj.threshold) %>% arrange(-NES)
-    if (only.pos) {res <- res %>% filter(NES > 0) %>% arrange(-NES)}
+    res <- fgsea(
+      pathways = reference_markers,
+      stats = cluster_stats,
+      BPPARAM = BiocParallel::MulticoreParam(workers = workers)
+    ) %>%
+      filter(padj < padj.threshold) %>%
+      arrange(-NES)
+    if (only.pos) {
+      res <- res %>% filter(NES > 0) %>% arrange(-NES)
+    }
 
     result[[current_cluster]] <- res
-
   }
 
   return(result)
