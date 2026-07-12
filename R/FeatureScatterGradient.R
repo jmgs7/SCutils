@@ -56,15 +56,14 @@
 #'   between `feature1` and `feature2`. Accepted values are `"pearson"`
 #'   (default), `"spearman"`, and `"kendall"`. Passed to `stats::cor()` as the
 #'   `method` argument.
-#' @param layer1 Character scalar or `NULL`. Assay layer from which `feature1`
+#' @param layer1 Character scalar, `NA` or `NULL`. Assay layer from which `feature1`
 #'   should be obtained (e.g. `"counts"`, `"data"`, `"scale.data"`). When
-#'   `NULL`, Seurat's default layer is used. Empty strings and `"null"`
+#'   `NULL` or `NA`, Seurat's default layer is used. Empty strings and `"null"`
 #'   (case-insensitive) are treated as `NULL`. Metadata-backed features ignore
 #'   `layer1` at the data access level.
-#' @param layer2 Character scalar or `NULL`. Assay layer from which `feature2`
-#'   should be obtained. Semantics mirror `layer1`. Metadata-backed features
-#'   ignore `layer2`.
-#' @param layer.gradient Character scalar or `NULL`. Assay layer from which
+#' @param layer2 Character scalar, `NA` or `NULL`. Assay layer from which `feature2`
+#'   should be obtained. Semantics mirror `layer1`.
+#' @param layer.gradient Character scalar, `NA` or `NULL`. Assay layer from which
 #'   `gradient` should be obtained. Semantics mirror `layer1`. Metadata-backed
 #'   features ignore `layer.gradient`.
 #' @param plot.title Character scalar or `NULL`. Optional custom main title for
@@ -293,26 +292,25 @@ FeatureScatterGradient <- function(
 
   # Validate layer1: NULL or single character.
   if (!is.null(layer1)) {
-    if (!is.character(layer1) || length(layer1) != 1L || is.na(layer1)) {
-      stop("'layer1' must be NULL or a single non-NA character value.")
+    if (!is.character(layer1) || length(layer1) != 1L) {
+      stop("'layer1' must be NULL, NA, or a single non-NA character value.")
     }
   }
 
   # Validate layer2: NULL or single character.
   if (!is.null(layer2)) {
-    if (!is.character(layer2) || length(layer2) != 1L || is.na(layer2)) {
-      stop("'layer2' must be NULL or a single non-NA character value.")
+    if (!is.character(layer2) || length(layer2) != 1L) {
+      stop("'layer2' must be NULL, NA, or a single non-NA character value.")
     }
   }
 
-  # Validate layer.gradient: NULL or single character.
+  # Validate layer.gradient: NULL, NA or single character.
   if (!is.null(layer.gradient)) {
     if (
       !is.character(layer.gradient) ||
-        length(layer.gradient) != 1L ||
-        is.na(layer.gradient)
+        length(layer.gradient) != 1L
     ) {
-      stop("'layer.gradient' must be NULL or a single non-NA character value.")
+      stop("'layer.gradient' must be NULL, NA, or a single character value.")
     }
   }
 
@@ -330,15 +328,11 @@ FeatureScatterGradient <- function(
   # arguments are scalar-only, but empty strings and "null" should behave like
   # an omitted layer rather than being forwarded to FetchData()).
   normalizeSingleLayer <- function(layer.value) {
-    if (is.null(layer.value)) {
-      return(NULL)
-    }
-
     layer.value.lower <- tolower(layer.value)
-    if (layer.value.lower %in% c("", "null")) {
+    if (layer.value.lower %in% c("", "null", NA)) {
       return(NULL)
     }
-
+    
     return(layer.value)
   }
 

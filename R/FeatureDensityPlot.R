@@ -36,7 +36,7 @@
 #'   For vector input, each element follows the same rules as the scalar form.
 #'   `"upper"`, `"lower"`, and `"both"` use median +/- `nmad`*MAD.
 #'   A length-1 vector is recycled to all features.
-#' @param layer Character or `NULL`. Specifies which assay layer to extract feature
+#' @param layer Character, `NULL` or `NA`. Specifies which assay layer to extract feature
 #'   values from (e.g., `"data"`, `"counts"`, `"scale.data"`). `NULL` uses the
 #'   default layer. May be a single string (applied to all features) or a character
 #'   vector of length equal to `features` (per-feature layer specification).
@@ -243,7 +243,7 @@ FeatureDensityPlot <- function(
       layer.per.feature <- rep(list(layer), length(features))
     } else if (length(layer) == length(features)) {
       layer.per.feature <- lapply(layer, function(x) {
-        if (is.na(x) || tolower(x) == "null") {
+        if (is.na(x) || tolower(x) == "null" || tolower(x) == "") {
           return(NULL)
         }
         x
