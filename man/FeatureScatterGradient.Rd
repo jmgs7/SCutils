@@ -57,15 +57,14 @@ between `feature1` and `feature2`. Accepted values are `"pearson"`
 (default), `"spearman"`, and `"kendall"`. Passed to `stats::cor()` as the
 `method` argument.}
 
-\item{layer1}{Character scalar or `NULL`. Assay layer from which `feature1`
+\item{layer1}{Character scalar, `NA` or `NULL`. Assay layer from which `feature1`
 should be obtained (e.g. `"counts"`, `"data"`, `"scale.data"`). When
-`NULL`, Seurat's default layer is used. Empty strings and `"null"`
+`NULL` or `NA`, Seurat's default layer is used. Empty strings and `"null"`
 (case-insensitive) are treated as `NULL`. Metadata-backed features ignore
 `layer1` at the data access level.}
 
-\item{layer2}{Character scalar or `NULL`. Assay layer from which `feature2`
-should be obtained. Semantics mirror `layer1`. Metadata-backed features
-ignore `layer2`.}
+\item{layer2}{Character scalar, `NA` or `NULL`. Assay layer from which `feature2`
+should be obtained. Semantics mirror `layer1`.}
 
 \item{plot.title}{Character scalar or `NULL`. Optional custom main title for
 grouped plots. When `group.by` is `NULL`, this argument is ignored and the
@@ -77,7 +76,7 @@ provided; otherwise, the default main title is the concatenation
 \item{pt.size}{Numeric scalar. Point size for the scatter plot. Default is
 `0.5`.}
 
-\item{layer.gradient}{Character scalar or `NULL`. Assay layer from which
+\item{layer.gradient}{Character scalar, `NA` or `NULL`. Assay layer from which
 `gradient` should be obtained. Semantics mirror `layer1`. Metadata-backed
 features ignore `layer.gradient`.}
 }

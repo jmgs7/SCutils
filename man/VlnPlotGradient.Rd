@@ -58,12 +58,12 @@ patchwork layout. When `NULL`, the number of columns equals
 `length(features)`, but if `length(features) > 5`, the number of columns #'   is set to `ceiling(sqrt(length(features)))` to avoid excessive horizontal
 stretching.}
 
-\item{layer}{Character scalar or vector, or `NULL`. Assay layer(s) used to
-retrieve feature expression values. When `NULL`, Seurat's default layer
-resolution is used. When a length-1 character vector is supplied, the same
-layer is applied to all features. When a character vector of length equal
-to `length(features)` is supplied, each feature uses its corresponding
-layer entry. Entries that are `NA`, "null" (case-insensitive), or empty
+\item{layer}{Character scalar or vector, `NA` or `NULL`. Assay layer(s) used
+to retrieve feature expression values. When `NA`or `NULL`, Seurat's default 
+layer resolution is used. When a length-1 character vector is supplied, the 
+same layer is applied to all features. When a character vector of length 
+equal to `length(features)` is supplied, each feature uses its corresponding
+layer entry. Entries that are "null" (case-insensitive), or empty
 strings are treated as `NULL` for that feature. Metadata-backed features
 ignore `layer` at the data access level, but assay-backed features obey it.}
 

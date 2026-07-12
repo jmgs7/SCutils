@@ -46,7 +46,7 @@ For vector input, each element follows the same rules as the scalar form.
 `"upper"`, `"lower"`, and `"both"` use median +/- `nmad`*MAD.
 A length-1 vector is recycled to all features.}
 
-\item{layer}{Character or `NULL`. Specifies which assay layer to extract feature
+\item{layer}{Character, `NULL` or `NA`. Specifies which assay layer to extract feature
 values from (e.g., `"data"`, `"counts"`, `"scale.data"`). `NULL` uses the
 default layer. May be a single string (applied to all features) or a character
 vector of length equal to `features` (per-feature layer specification).}
