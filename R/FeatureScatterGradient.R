@@ -49,11 +49,9 @@
 #'   `"cividis"`, `"rocket"`, `"mako"`, `"turbo"` or their letter codes). Default
 #'   is `"viridis"`.
 #' @param lower.limit Numeric scalar or `NULL`. Lower limit of the gradient
-#'   color scale. When `NULL`, the lower bound is left open and is inferred by
-#'   `ggplot2` from the data.
+#'   color scale. When `NULL`, the lower bound is left open and is inferred from #'   the data.
 #' @param upper.limit Numeric scalar or `NULL`. Upper limit of the gradient
-#'   color scale. When `NULL`, the upper bound is left open and is inferred by
-#'   `ggplot2` from the data.
+#'   color scale. When `NULL`, the upper bound is left open and is inferred from #'   the data.
 #' @param corr.method Character scalar. Method used to compute the correlation
 #'   between `feature1` and `feature2`. Accepted values are `"pearson"`
 #'   (default), `"spearman"`, and `"kendall"`. Passed to `stats::cor()` as the
