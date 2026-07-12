@@ -157,6 +157,7 @@
 #' @import Seurat
 #' @import ggplot2
 #' @import patchwork
+#' @importFrom stats cor
 #' @export
 FeatureScatterGradient <- function(
   SeuratObject,

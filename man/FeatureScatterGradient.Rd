@@ -32,7 +32,8 @@ any variable resolvable by `Seurat::FetchData()`.}
 Same resolution rules as for `feature1`.}
 
 \item{gradient}{Character scalar. Name of the feature whose values will be
-used to set the color gradient of the points. Resolved via `Seurat::FetchData()`.}
+used to set the color gradient of the points. Resolved via
+`Seurat::FetchData()`.}
 
 \item{group.by}{Character scalar or `NULL`. Grouping variable used to create
 per-group panels when non-`NULL`. If `NULL`, no grouping is applied and a
@@ -46,12 +47,10 @@ gradient color scale (`"magma"`, `"inferno"`, `"plasma"`, `"viridis"`,
 is `"viridis"`.}
 
 \item{lower.limit}{Numeric scalar or `NULL`. Lower limit of the gradient
-color scale. When `NULL`, the lower bound is left open and is inferred by
-`ggplot2` from the data.}
+color scale. When `NULL`, the lower bound is left open and is inferred from #'   the data.}
 
 \item{upper.limit}{Numeric scalar or `NULL`. Upper limit of the gradient
-color scale. When `NULL`, the upper bound is left open and is inferred by
-`ggplot2` from the data.}
+color scale. When `NULL`, the upper bound is left open and is inferred from #'   the data.}
 
 \item{corr.method}{Character scalar. Method used to compute the correlation
 between `feature1` and `feature2`. Accepted values are `"pearson"`
@@ -68,10 +67,6 @@ should be obtained (e.g. `"counts"`, `"data"`, `"scale.data"`). When
 should be obtained. Semantics mirror `layer1`. Metadata-backed features
 ignore `layer2`.}
 
-\item{layer.gradient}{Character scalar or `NULL`. Assay layer from which
-`gradient` should be obtained. Semantics mirror `layer1`. Metadata-backed
-features ignore `layer.gradient`.}
-
 \item{plot.title}{Character scalar or `NULL`. Optional custom main title for
 grouped plots. When `group.by` is `NULL`, this argument is ignored and the
 plot title is always set to the global correlation string. When `group.by`
@@ -81,6 +76,10 @@ provided; otherwise, the default main title is the concatenation
 
 \item{pt.size}{Numeric scalar. Point size for the scatter plot. Default is
 `0.5`.}
+
+\item{layer.gradient}{Character scalar or `NULL`. Assay layer from which
+`gradient` should be obtained. Semantics mirror `layer1`. Metadata-backed
+features ignore `layer.gradient`.}
 }
 \value{
 If `group.by` is `NULL`, returns a single `ggplot2` object representing the
@@ -89,9 +88,10 @@ title displaying the global correlation value.
 
 If `group.by` is non-`NULL`, returns a combined `ggplot2`/`patchwork` object
 with one panel per group level. Each panel shows the scatter of `feature1`
-vs `feature2` for that group, colored by `gradient`, and a panel title
-displaying the group-specific correlation value. The combined plot has a
-main title and shared legend.
+vs `feature2` for that group, colored by `gradient`, with the panel title
+equal to the group name and the panel subtitle displaying the group-specific
+correlation string. The combined plot has a main title and a single shared
+gradient legend.
 }
 \description{
 `FeatureScatterGradient()` extends `Seurat::FeatureScatter()` by coloring
@@ -115,8 +115,8 @@ When `group.by` is `NULL`, a single scatter plot is returned, with the title
 set to the global correlation string (e.g. `"Pearson = 0.85"`). When
 `group.by` is non-`NULL`, the function returns a combined patchwork of
 per-group scatter panels, with a main title summarising the feature pairing
-(or an optional `plot.title`) and per-panel titles showing the group-specific
-correlation values.
+(or an optional `plot.title`), each panel titled with the group name and
+subtitled with the group-specific correlation string.
 
 Axis labels follow `feature_layer` naming for assay-backed features when a
 layer is specified, and plain `feature` naming for metadata-backed features,
@@ -141,13 +141,21 @@ matching naming safeguards used in other SCutils plotting functions.
 **Grouping and correlation**: When `group.by` is `NULL`, correlation is
 computed across all cells using the selected `corr.method` and displayed on
 the plot. When `group.by` is non-`NULL`, correlation is recomputed separately
-for each group level and displayed in the title of each panel. Groups with
-insufficient non-NA data yield an `"NA"` correlation value.
+for each group level and displayed as the subtitle of each panel, while the
+panel title shows the group name. Groups with insufficient non-NA data yield
+an `"NA"` correlation value.
+
+**Gradient scaling across groups**: In grouped mode, the gradient color scale
+is computed globally from all `gradient` values unless `lower.limit`,
+`upper.limit`, or both are supplied. Limits are passed to ggplot2 as
+`c(lower.limit, upper.limit)`, so either side can remain open (`NULL`) and
+be inferred from the data while preserving a single shared scale and legend
+across all panels.
 
 **Aesthetics**: Ungrouped plots mimic Seurat's `FeatureScatter` aesthetics
 (single panel, Seurat-like theme, point coloring), while grouped plots are
-styled to be cohesive with `FeatureDensityPlot()`
-(consistent fonts, legend placement, and patchwork layout).
+styled to be cohesive with `FeatureDensityPlot()` (consistent fonts, legend
+placement, and patchwork layout).
 }
 \examples{
 \dontrun{
