@@ -25,7 +25,8 @@
 #'
 #' @param SeuObj A Seurat object. The function reads counts from the active assay and adds metadata columns.
 #'   Patterns are interpreted as regular expressions by Seurat::PercentageFeatureSet.
-#' @param data.layers Default: `NULL`. If normalization has been applied to the SeuObj, you can provide
+#' @param assay Default: "RNA". The assay in SeuObj to use for QC calculations.
+#' @param layers Default: `NULL`. If normalization has been applied to the SeuObj, you can provide
 #'   the layers where the data is stored. If NULL, the function will attempt to find all log-normalized data layers
 #'   in the Seurat object. If not found, the function will skip log-normalized QC calculations.
 #' @param perform.cell.cycle.scoring Default: `TRUE`. If `TRUE`, the function will perform cell cycle scoring
@@ -43,7 +44,8 @@
 
 CalculateQC <- function(
   SeuObj,
-  data.layers = NULL,
+  assay = "RNA",
+  layers = NULL,
   perform.cell.cycle.scoring = TRUE
 ) {
   # Estimation of metrics
@@ -93,29 +95,32 @@ CalculateQC <- function(
     SeuObj@meta.data$log10_nCount_RNA # Complexity, corresponding to the amount of genes that are covered by the counts of each cell.
 
   # This steps are only if the Seurat object has log-normalized data layers, which are not always present.
-  seurat.data.layers <- SeuratObject::Layers(
+  object.layers <- SeuratObject::Layers(
     SeuObj,
-    assay = "RNA",
-    search = "data"
+    assay = assay
   )
-  if (is.null(data.layers)) {
+  if (!is.null(layers)) {
     # Check if the Seurat object has log-normalized data layers, and if not, skip the log-normalized QC calculations.
-    if (!any(grepl("data", seurat.data.layers))) {
-      message(
-        "No log-normalized data layers found in the Seurat object. Skipping log-normalized QC calculations."
+    if (!all(layers %in% object.layers)) {
+      stop(
+        "Some specified layers are not present in the Seurat object. Please check the provided layers argument."
+      )
+    }
+    # Also check if the user provided layers are present in the Seurat object.
+  } else {
+    if (!any(grepl("data", object.layers))) {
+      warning(
+        "User did not specified any layers and no log-normalized data layers were found in the Seurat object. Skipping log-normalized QC calculations."
       )
       return(SeuObj)
     }
-    # Also check if the user provided data.layers are present in the Seurat object.
-  } else if (!all(data.layers %in% seurat.data.layers)) {
-    stop(
-      "Some specified data layers are not present in the Seurat object. Please check the provided data.layers argument."
-    )
+    layers <- object.layers[grepl("data", object.layers)]
   }
 
   DataLayersQC <- function(
     SeuObj,
-    data.layers = NULL,
+    assay = "RNA",
+    layers = NULL,
     perform.cell.cycle.scoring = TRUE
   ) {
     # Helper function to calculate QC metrics for each log-normalized data layer in the Seurat object.
@@ -123,10 +128,10 @@ CalculateQC <- function(
     # number of features detected per cell in log counts, and cell cycle scoring.
 
     # 1. Fetch all log-normalized 'data' layers names.
-    if (is.null(data.layers)) {
-      data.layers <- SeuratObject::Layers(
+    if (is.null(layers)) {
+      layers <- SeuratObject::Layers(
         SeuObj,
-        assay = "RNA",
+        assay = assay,
         search = "data"
       )
     }
@@ -134,11 +139,11 @@ CalculateQC <- function(
     # 2. Cycle per layer and calculate the total number of log-normalized counts per cell,
     # and the total number of features detected per cell in log counts, and cell cycle scoring.
     # Data will be added to the Seurat object's metadata per layer.
-    log.metadata <- lapply(data.layers, function(layer) {
+    log.metadata <- lapply(layers, function(layer) {
       # Extract the layer data to compute QC metrics.
       layer.data <- SeuratObject::LayerData(
         SeuObj,
-        assay = "RNA",
+        assay = assay,
         layer = layer
       )
 
@@ -161,9 +166,13 @@ CalculateQC <- function(
 
     # Set the row names of the log.metadata data frame to the cell IDs for proper alignment with the Seurat object's metadata.
     row.names(log.metadata) <- log.metadata$cell.id
+    # Remve the cell.id column from log.metadata as it is now redundant with the row names.
+    log.metadata$cell.id <- NULL
     # Add the calculated QC metrics to the Seurat object's metadata.
-    SeuObj@meta.data$nCount_logRNA <- log.metadata$nCount_logRNA
-    SeuObj@meta.data$nFeature_logRNA <- log.metadata$nFeature_logRNA
+    SeuObj <- Seurat::AddMetaData(
+      object = SeuObj,
+      metadata = log.metadata
+    )
 
     # Add cell cycle scoring results to the Seurat object's metadata if requested.
     # Perform cell cycle scoring if requested.
@@ -182,7 +191,8 @@ CalculateQC <- function(
   # Apply the helper function to the Seurat object.
   SeuObj <- DataLayersQC(
     SeuObj,
-    data.layers = data.layers,
+    assay = assay,
+    layers = layers,
     perform.cell.cycle.scoring = perform.cell.cycle.scoring
   )
 
