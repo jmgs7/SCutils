@@ -31,11 +31,17 @@
 #'   in the Seurat object. If not found, the function will skip log-normalized QC calculations.
 #' @param perform.cell.cycle.scoring Default: `TRUE`. If `TRUE`, the function will perform cell cycle scoring
 #'   using the updated S and G2/M phase gene sets. If `FALSE`, cell cycle scoring will be skipped.
+#' @param perform.MALAT1.test Default: `TRUE`. If `TRUE`, the function will apply the MALAT1 thresholding
+#'   function to the Seurat object. If `FALSE`, the MALAT1 thresholding will be skipped.
 #' @return The input Seurat object with the new metadata columns added.
 #' @examples
-#' # CalculateQC(SeuObj)
-#' # CalculateQC(SeuObj, data.layers = c("data", "data_layer2"))
-#' # CalculateQC(SeuObj, perform.cell.cycle.scoring = FALSE)
+#'   \dontrun{
+#'     SeuObj <- CalculateQC(SeuObj)
+#'     SeuObj <- CalculateQC(SeuObj, layers = c("data", "data_layer2"))
+#'     SeuObj <- CalculateQC(SeuObj, perform.cell.cycle.scoring = FALSE)
+#'     SeuObj <- CalculateQC(SeuObj, assay = "RNA", perform.MALAT1.test = FALSE)
+#' }
+#'
 #' @import Seurat
 #' @import SeuratObject
 #' @import BPCells
@@ -46,7 +52,8 @@ CalculateQC <- function(
   SeuObj,
   assay = "RNA",
   layers = NULL,
-  perform.cell.cycle.scoring = TRUE
+  perform.cell.cycle.scoring = TRUE,
+  perform.MALAT1.test = TRUE
 ) {
   # Estimation of metrics
   SeuObj@meta.data$percent.mt <- Seurat::PercentageFeatureSet(
@@ -121,7 +128,8 @@ CalculateQC <- function(
     SeuObj,
     assay = "RNA",
     layers = NULL,
-    perform.cell.cycle.scoring = TRUE
+    perform.cell.cycle.scoring = TRUE,
+    perform.MALAT1.test = TRUE
   ) {
     # Helper function to calculate QC metrics for each log-normalized data layer in the Seurat object.
     # We calculate the total number of log-normalized counts per cell, and the total
@@ -183,6 +191,16 @@ CalculateQC <- function(
         s.features = cc.genes.updated.2019$s.genes,
         g2m.features = cc.genes.updated.2019$g2m.genes
       )
+
+      # Apply the MALAT1 thresholding function to the Seurat object upon user request
+      if (perform.MALAT1.test) {
+        SeuObj <- .CalculateFeatureThresholdSeurat(
+          SeuObj = SeuObj,
+          assay = assay,
+          layers = layers,
+          feature = "MALAT1",
+        )
+      }
     }
 
     return(SeuObj)
@@ -193,9 +211,9 @@ CalculateQC <- function(
     SeuObj,
     assay = assay,
     layers = layers,
-    perform.cell.cycle.scoring = perform.cell.cycle.scoring
+    perform.cell.cycle.scoring = perform.cell.cycle.scoring,
+    perform.MALAT1.test = perform.MALAT1.test
   )
 
-  ##TODO: Add MALAT1 test.
   return(SeuObj)
 }

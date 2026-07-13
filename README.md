@@ -72,6 +72,14 @@ Added columns include:
 - `percent.MALAT1`, `percent.S100A9`, `percent.S100A8`, `percent.FCGR3B`
 - `log10_nFeature_RNA`, `log10_nCount_RNA`, `complexity`
 
+When a normalized counts data layer is present, it also computesL
+
+- log-normalized counts per cell and detected features per cell for the normalized layer, and adds them as `nCount_logRNA` and `nFeature_logRNA`.
+- Cell cycle scoring.
+- MALAT1-based QC thresholding, adding `MALAT1.threshold` (numeric) and `MALAT1.pass` (boolean) columns to `meta.data`. For more info about his QC metric, visit the [feature_threshold](https://github.com/jmgs7/feature_threshold) repository.
+
+The normalized QC metrics are computed from the normalized counts in the default assay and layer, or from the user-specified assay and layer if provided. The function also supports split Seurat objects, computing QC metrics per individual layer if the normalized counts are stored in the standard `data.layer` layers of the assay or if the user specifies the concrete data layers.
+
 ```r
 SeuratObject <- CalculateQC(SeuratObject)
 ```
@@ -311,3 +319,13 @@ results <- scGSEAmarkers(
 ## License
 
 GPLv3 © José Manuel Gómez Silva
+
+## Contact and contributions
+
+If you find bugs, have suggestions for improvements, please open an issue or pull request on GitHub.
+
+When contributing code:
+
+- Follow the existing style (based partially on Google's R style guide: CamelCase for exported functions, dot.case for arguments/variables, explicit `package::function` calls, etc).
+- Include clear roxygen documentation and tests where appropriate.
+- Respect licensing and attribution, particularly for any further upstream code you may incorporate.

@@ -80,9 +80,9 @@
 #'     counts.vector    = malat1_norm,
 #'     bw.bandwidth     = 0.01,
 #'     chosen.min       = 2,
-#'     smooth.spar      = 2,
+#'     smooth.spar      = 1,
 #'     abs.min          = 1,
-#'     rough.max        = 3,
+#'     rough.max        = 6,
 #'     conservative.threshold = 2
 #'   )
 #' }
