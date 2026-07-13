@@ -87,6 +87,11 @@ SeuratObject <- CalculateQC(SeuratObject)
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
 | `SeuratObject` | — | Seurat object to annotate with QC metadata |
+| `assay` | `NULL` | Assay to use for QC metrics; if `NULL`, uses the default assay |
+| `layers` | `NULL` | Data layer(s) to use for QC metrics;
+  if `NULL`, uses the default layer (`data`); if a vector of layer names, computes QC metrics for each layer and appends them to `meta.data` with suffixes `_layername` |
+| `perform.cell.cycle.scoring` | `FALSE` | If `TRUE`, performs cell cycle scoring and adds results to `meta.data` |
+| `perform.MALAT1.test` | `FALSE` | If `TRUE`, performs MALAT1-based QC thresholding and adds results to `meta.data` |  
 
 
 ***
