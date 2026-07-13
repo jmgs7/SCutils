@@ -1,0 +1,3 @@
+[submodule "vendor/MALAT1_threshold"]
+	path = vendor/MALAT1_threshold
+	url = git@github.com:jmgs7/MALAT1_threshold.git
