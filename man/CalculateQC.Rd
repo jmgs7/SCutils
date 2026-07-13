@@ -4,24 +4,46 @@
 \alias{CalculateQC}
 \title{CalculateQC}
 \usage{
-CalculateQC(SeuratObject)
+CalculateQC(
+  SeuObj,
+  assay = "RNA",
+  layers = NULL,
+  perform.cell.cycle.scoring = TRUE,
+  perform.MALAT1.test = TRUE
+)
 }
 \arguments{
-\item{SeuratObject}{A Seurat object (v3/v4). The function reads counts from the active assay and adds metadata columns.}
+\item{SeuObj}{A Seurat object. The function reads counts from the active assay and adds metadata columns.
+Patterns are interpreted as regular expressions by Seurat::PercentageFeatureSet.}
+
+\item{assay}{Default: "RNA". The assay in SeuObj to use for QC calculations.}
+
+\item{layers}{Default: `NULL`. If normalization has been applied to the SeuObj, you can provide
+the layers where the data is stored. If NULL, the function will attempt to find all log-normalized data layers
+in the Seurat object. If not found, the function will skip log-normalized QC calculations.}
+
+\item{perform.cell.cycle.scoring}{Default: `TRUE`. If `TRUE`, the function will perform cell cycle scoring
+using the updated S and G2/M phase gene sets. If `FALSE`, cell cycle scoring will be skipped.}
+
+\item{perform.MALAT1.test}{Default: `TRUE`. If `TRUE`, the function will apply the MALAT1 thresholding
+function to the Seurat object. If `FALSE`, the MALAT1 thresholding will be skipped.}
 }
 \value{
 The input Seurat object with the new metadata columns added.
 }
 \description{
 Estimate common single-cell QC metrics and append them to a Seurat object's metadata.
-}
-\details{
+
 This function calculates percent-based metrics using Seurat::PercentageFeatureSet for
 mitochondrial, ribosomal, hemoglobin, immunoglobulin, platelet-associated genes and
 several individual marker genes, and also computes log10-transformed feature/count
 values and a complexity ratio.
 
-The following metadata columns are added to SeuratObject:
+If the Seurat object contains log-normalized data layers, the function will also calculate
+the total number of log-normalized counts and features per cell, as well as cell cycle scoring
+using updated S and G2/M phase gene sets.
+
+#' @details The following metadata columns are added to SeuObj:
 \itemize{
   \item percent.mt: percentage of counts matching '^MT-'
   \item percent.ribo: percentage of counts matching '^RP[SL]'
@@ -32,8 +54,13 @@ The following metadata columns are added to SeuratObject:
   \item log10_nFeature_RNA, log10_nCount_RNA: base-10 logarithms of nFeature_RNA and nCount_RNA
   \item complexity: ratio log10_nFeature_RNA / log10_nCount_RNA
 }
-Patterns are interpreted as regular expressions by Seurat::PercentageFeatureSet.
 }
 \examples{
-# CalculateQC(SeuratObject)
+  \dontrun{
+    SeuObj <- CalculateQC(SeuObj)
+    SeuObj <- CalculateQC(SeuObj, layers = c("data", "data_layer2"))
+    SeuObj <- CalculateQC(SeuObj, perform.cell.cycle.scoring = FALSE)
+    SeuObj <- CalculateQC(SeuObj, assay = "RNA", perform.MALAT1.test = FALSE)
+}
+
 }

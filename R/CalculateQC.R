@@ -185,12 +185,12 @@ CalculateQC <- function(
     # Add cell cycle scoring results to the Seurat object's metadata if requested.
     # Perform cell cycle scoring if requested.
     if (perform.cell.cycle.scoring) {
-      SeuObj <- Seurat::CellCycleScoring(
+      SeuObj <- suppressWarnings(Seurat::CellCycleScoring(
         SeuObj,
         # Uses Seurat S and G2M genes dataset.
         s.features = cc.genes.updated.2019$s.genes,
         g2m.features = cc.genes.updated.2019$g2m.genes
-      )
+      ))
 
       # Apply the MALAT1 thresholding function to the Seurat object upon user request
       if (perform.MALAT1.test) {

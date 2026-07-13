@@ -37,7 +37,7 @@ ConvertEnsembleToSymbol2 <- function(
     values = genes,
     mart = mart
   )
-  gene.df <- left_join(name_df, gene_IDs, by = c("gene_id" = "ensembl_gene_id"))
+  gene.df <- dplyr::left_join(name_df, gene_IDs, by = c("gene_id" = "ensembl_gene_id"))
   rownames(gene.df) <- make.unique(gene.df$orig.id)
   gene.df <- gene.df[rownames(mat), ]
   gene.df <- gene.df[gene.df[, symbol] != '', ]
@@ -46,3 +46,5 @@ ConvertEnsembleToSymbol2 <- function(
   rownames(mat.filter) <- make.unique(gene.df[, symbol])
   return(mat.filter)
 }
+
+##TODO: Improve code documetanition, add roxygen docstring, create it as a internal function, style code.

@@ -27,9 +27,9 @@ scGSEAmarkers <- function(
 
   for (current_cluster in cluster_list) {
     cluster_stats <- cluster_markers |>
-      filter(cluster == current_cluster) |>
-      arrange(-avg_log2FC) |>
-      select(c(gene, avg_log2FC)) |>
+      dplyr::filter(cluster == current_cluster) |>
+      dplyr::arrange(-avg_log2FC) |>
+      dplyr::select(c(gene, avg_log2FC)) |>
       tibble::deframe()
 
     res <- fgsea(
@@ -37,10 +37,10 @@ scGSEAmarkers <- function(
       stats = cluster_stats,
       BPPARAM = BiocParallel::MulticoreParam(workers = workers)
     ) |>
-      filter(padj < padj.threshold) |>
-      arrange(-NES)
+      dplyr::filter(padj < padj.threshold) |>
+      dplyr::arrange(-NES)
     if (only.pos) {
-      res <- res |> filter(NES > 0) |> arrange(-NES)
+      res <- res |> dplyr::filter(NES > 0) |> dplyr::arrange(-NES)
     }
 
     result[[current_cluster]] <- res
