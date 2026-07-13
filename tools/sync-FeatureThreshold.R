@@ -5,7 +5,7 @@
 
 # Define the project-relative root paths.
 project.root <- "."
-vendor.root <- file.path(project.root, "vendor", "MALAT1_threshold")
+vendor.root <- file.path(project.root, "vendor", "feature_threshold")
 target.root <- file.path(project.root, "R")
 
 # Define the source -> target file mapping explicitly.
