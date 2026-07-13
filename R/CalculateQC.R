@@ -38,7 +38,7 @@
 #' @import Seurat
 #' @import SeuratObject
 #' @import BPCells
-#' @import data.table
+#' @importFrom data.table rbindlist
 #' @export
 
 CalculateQC <- function(
