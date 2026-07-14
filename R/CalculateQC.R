@@ -33,6 +33,15 @@
 #'   using the updated S and G2/M phase gene sets. If `FALSE`, cell cycle scoring will be skipped.
 #' @param perform.MALAT1.test Default: `TRUE`. If `TRUE`, the function will apply the MALAT1 thresholding
 #'   function to the Seurat object. If `FALSE`, the MALAT1 thresholding will be skipped.
+#' @param ... Additional arguments passed to the underlying `.CalculateFeatureThresholdSeurat` function, such as:
+#'  \itemize{
+#'    \item \code{bw.bandwidth}: Bandwidth for kernel density estimation (default: 0.01).
+#'    \item \code{chosen.min}: Chosen minimum which a peak should be considered the dataset
+#'      peak (default: 2).
+#'    \item \code{smooth.spar}: Smoothing parameter for density estimation (default: 2).
+#'    \item \code{abs.min}: Absolute minimum threshold (default: 1).
+#'    \item \code{rough.max}: Rough expected position of the MALAT1 expression peak (default: 6).
+#'    \item \code{conservative.threshold}: Conservative threshold to apply when impossible to find local minimum (default: 2).
 #' @return The input Seurat object with the new metadata columns added.
 #' @examples
 #'   \dontrun{
@@ -53,7 +62,8 @@ CalculateQC <- function(
   assay = "RNA",
   layers = NULL,
   perform.cell.cycle.scoring = TRUE,
-  perform.MALAT1.test = TRUE
+  perform.MALAT1.test = TRUE,
+  ...
 ) {
   # Estimation of metrics
   SeuObj@meta.data$percent.mt <- Seurat::PercentageFeatureSet(
@@ -129,7 +139,8 @@ CalculateQC <- function(
     assay = "RNA",
     layers = NULL,
     perform.cell.cycle.scoring = TRUE,
-    perform.MALAT1.test = TRUE
+    perform.MALAT1.test = TRUE,
+    ...
   ) {
     # Helper function to calculate QC metrics for each log-normalized data layer in the Seurat object.
     # We calculate the total number of log-normalized counts per cell, and the total
@@ -199,6 +210,7 @@ CalculateQC <- function(
           assay = assay,
           layers = layers,
           feature = "MALAT1",
+          ...
         )
       }
     }
@@ -212,7 +224,8 @@ CalculateQC <- function(
     assay = assay,
     layers = layers,
     perform.cell.cycle.scoring = perform.cell.cycle.scoring,
-    perform.MALAT1.test = perform.MALAT1.test
+    perform.MALAT1.test = perform.MALAT1.test,
+    ...
   )
 
   return(SeuObj)
