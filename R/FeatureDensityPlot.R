@@ -68,6 +68,11 @@
 #' `lapply()` is used only when `split.plot = TRUE` to iterate over group levels.
 #' This structure keeps per-feature data local and reduces indexing overhead.
 #'
+#' **Vline semantics**: Keyword inputs ("mean", "median", "upper", "lower", "both")
+#' compute reference positions from the empirical distribution per feature or per
+#' group. Numeric inputs are used as explicit x-intercepts. When a per-group vector
+#' is supplied for a single feature, each group panel uses its own element.
+#'
 #' @examples
 #' \dontrun{
 #' # Metadata-only (backward compatible)
@@ -92,6 +97,24 @@
 #'   SeuratObject,
 #'   features = c("percent.mt", "CD3D", "nCount_RNA"),
 #'   layer = c(NA, "counts", NA)  # CD3D from raw counts, others from metadata
+#' )
+#'
+#' # Single feature with per-group vlines (one entry per batch level)
+#' FeatureDensityPlot(
+#'   SeuratObject,
+#'   features = "percent.mt",
+#'   group.by = "batch",
+#'   split.plot = TRUE,
+#'   vline = c("upper", "lower")
+#' )
+#'
+#' # Single feature with numeric vlines per group
+#' FeatureDensityPlot(
+#'   SeuratObject,
+#'   features = "CD3D",
+#'   group.by = "ident",
+#'   split.plot = TRUE,
+#'   vline = c(0.5, 1.0, 1.5)
 #' )
 #' }
 #'
@@ -176,11 +199,14 @@ FeatureDensityPlot <- function(
     }
   }
 
-  normalize.vline.entry <- function(
+  normalizeVlineEntry <- function(
     x,
     valid.keywords = c("mean", "median", "upper", "lower", "both")
   ) {
-    if (is.null(x) || is.na(x) || (is.character(x) && tolower(x) == "null")) {
+    # Normalize a single vline entry to either a keyword, a numeric scalar, or NULL.
+    if (
+      is.null(x) || (is.character(x) && tolower(x) %in% c("null", "na", ""))
+    ) {
       return(NULL)
     }
     if (is.character(x)) {
@@ -193,7 +219,7 @@ FeatureDensityPlot <- function(
         return(x.numeric)
       }
       stop(sprintf(
-        "vline entry '%s' is not a valid keyword, 'NULL', or a numeric value.",
+        "vline entry '%s' is not a valid keyword or numeric value.",
         x
       ))
     }
@@ -201,7 +227,7 @@ FeatureDensityPlot <- function(
       if (length(x) == 1L && !is.na(x)) {
         return(x)
       }
-      stop("numeric vline must be a single value, not a vector.")
+      stop("numeric vline must be a single non-NA value.")
     }
     stop(sprintf(
       "vline entry has unexpected type: %s",
@@ -209,36 +235,68 @@ FeatureDensityPlot <- function(
     ))
   }
 
-  valid.vline.values <- c("mean", "median", "upper", "lower", "both")
-  if (is.null(vline)) {
-    vline.per.feature <- rep(list(NULL), length(features))
-  } else if (is.numeric(vline)) {
-    if (length(vline) != 1L || is.na(vline)) {
-      stop("'vline' numeric input must be a single non-NA value.")
+  normalizeVlineVector <- function(
+    vline,
+    target.length,
+    valid.keywords = c("mean", "median", "upper", "lower", "both"),
+    context = "features"
+  ) {
+    # Normalize the raw vline input to a list of length target.length.
+    # Each element is either NULL, a keyword string, or a numeric scalar.
+    if (is.null(vline)) {
+      return(rep(list(NULL), target.length))
     }
-    vline.per.feature <- rep(list(vline), length(features))
-  } else if (is.character(vline)) {
-    if (length(vline) == 1L) {
-      vline.per.feature <- rep(
-        list(normalize.vline.entry(vline, valid.vline.values)),
-        length(features)
-      )
-    } else if (length(vline) == length(features)) {
-      vline.per.feature <- lapply(
-        vline,
-        normalize.vline.entry,
-        valid.keywords = valid.vline.values
-      )
-    } else {
+    if (is.numeric(vline)) {
+      if (length(vline) == 1L) {
+        entry <- normalizeVlineEntry(vline, valid.keywords)
+        return(rep(list(entry), target.length))
+      }
+      if (length(vline) == target.length) {
+        return(lapply(
+          as.list(vline),
+          normalizeVlineEntry,
+          valid.keywords = valid.keywords
+        ))
+      }
       stop(sprintf(
-        "'vline' has length %d but 'features' has length %d; it must be length 1 or length(features).",
+        "'vline' numeric input has length %d but %s has length %d; it must be length 1 or %d.",
         length(vline),
-        length(features)
+        context,
+        target.length,
+        target.length
       ))
     }
-  } else {
+    if (is.character(vline)) {
+      if (length(vline) == 1L) {
+        entry <- normalizeVlineEntry(vline, valid.keywords)
+        return(rep(list(entry), target.length))
+      }
+      if (length(vline) == target.length) {
+        # Allow mixtures of keywords and numeric values encoded as strings.
+        return(lapply(
+          vline,
+          normalizeVlineEntry,
+          valid.keywords = valid.keywords
+        ))
+      }
+      stop(sprintf(
+        "'vline' character input has length %d but %s has length %d; it must be length 1 or %d.",
+        length(vline),
+        context,
+        target.length,
+        target.length
+      ))
+    }
     stop("'vline' must be NULL, numeric, or character.")
   }
+
+  valid.vline.values <- c("mean", "median", "upper", "lower", "both")
+  vline.per.feature <- normalizeVlineVector(
+    vline = vline,
+    target.length = length(features),
+    valid.keywords = valid.vline.values,
+    context = "features"
+  )
 
   if (is.null(layer)) {
     layer.per.feature <- rep(list(NULL), length(features))
@@ -409,14 +467,27 @@ FeatureDensityPlot <- function(
 
   # Cache group levels once for split-plot branch.
   group.levels <- unique(plot.data$.group)
-  if (length(group.levels) == 0L) {
+  if (has.grouping && length(group.levels) == 0L) {
     stop("No groups available to plot after filtering missing grouping values.")
+  }
+
+  # When only a single feature is requested and split.plot = TRUE, allow a
+  # per-group vline vector (length equal to number of group levels).
+  vline.per.group <- NULL
+  if (has.grouping && split.plot && length(features) == 1L && !is.null(vline)) {
+    valid.vline.values <- c("mean", "median", "upper", "lower", "both")
+    vline.per.group <- normalizeVlineVector(
+      vline = vline,
+      target.length = length(group.levels),
+      valid.keywords = valid.vline.values,
+      context = "groups"
+    )
   }
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 3) Helper functions
   # ─────────────────────────────────────────────────────────────────────────────
-  compute.vline.positions <- function(values, vline.spec, nmad.value) {
+  computeVlinePositions <- function(values, vline.spec, nmad.value) {
     values <- values[!is.na(values)]
     if (length(values) == 0L || is.null(vline.spec)) {
       return(data.frame(xintercept = numeric(0), stringsAsFactors = FALSE))
@@ -468,7 +539,7 @@ FeatureDensityPlot <- function(
     return(data.frame(xintercept = numeric(0), stringsAsFactors = FALSE))
   }
 
-  compute.median.positions <- function(values) {
+  computeMedianPositions <- function(values) {
     values <- values[!is.na(values)]
     if (length(values) == 0L) {
       return(data.frame(xintercept = numeric(0), stringsAsFactors = FALSE))
@@ -479,7 +550,7 @@ FeatureDensityPlot <- function(
     ))
   }
 
-  build.single.density.panel <- function(
+  buildSingleDensityPanel <- function(
     feature.df,
     x.label,
     panel.title,
@@ -493,7 +564,7 @@ FeatureDensityPlot <- function(
         ggplot2::geom_rug(sides = "b", linewidth = pt.size, alpha = 0.35)
     }
 
-    vline.df <- compute.vline.positions(feature.df$value, vline.spec, nmad)
+    vline.df <- computeVlinePositions(feature.df$value, vline.spec, nmad)
     if (nrow(vline.df) > 0L) {
       current.plot <- current.plot +
         ggplot2::geom_vline(
@@ -507,7 +578,7 @@ FeatureDensityPlot <- function(
     }
 
     if (plot.median) {
-      median.df <- compute.median.positions(feature.df$value)
+      median.df <- computeMedianPositions(feature.df$value)
       if (nrow(median.df) > 0L) {
         current.plot <- current.plot +
           ggplot2::geom_vline(
@@ -550,7 +621,7 @@ FeatureDensityPlot <- function(
     }
 
     if (!has.grouping) {
-      return(build.single.density.panel(
+      return(buildSingleDensityPanel(
         feature.df = feature.df,
         x.label = feature.name,
         panel.title = feature.title,
@@ -580,7 +651,7 @@ FeatureDensityPlot <- function(
         vline.df <- feature.df |>
           dplyr::group_by(.group) |>
           dplyr::group_modify(
-            ~ compute.vline.positions(.x$value, feature.vline, nmad)
+            ~ computeVlinePositions(.x$value, feature.vline, nmad)
           ) |>
           dplyr::ungroup()
 
@@ -638,13 +709,19 @@ FeatureDensityPlot <- function(
       )
     }
 
-    group.plots <- lapply(group.levels, function(group.name) {
+    group.plots <- lapply(seq_along(group.levels), function(group.index) {
+      group.name <- group.levels[[group.index]]
       group.df <- feature.df[feature.df$.group == group.name, , drop = FALSE]
-      build.single.density.panel(
+      panel.vline <- if (!is.null(vline.per.group) && length(features) == 1L) {
+        vline.per.group[[group.index]]
+      } else {
+        feature.vline
+      }
+      buildSingleDensityPanel(
         feature.df = group.df,
         x.label = feature.name,
         panel.title = group.name,
-        vline.spec = feature.vline
+        vline.spec = panel.vline
       )
     })
 
