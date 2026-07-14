@@ -32,10 +32,16 @@
 #'   feature plot when `split.plot = TRUE`. If `NULL`, inferred automatically.
 #' @param vline Optional reference-line specification (drawn in dashed red).
 #'   Accepted values: `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`,
-#'   `"both"`, a numeric value, or a character vector with one entry per feature.
-#'   For vector input, each element follows the same rules as the scalar form.
-#'   `"upper"`, `"lower"`, and `"both"` use median +/- `nmad`*MAD.
-#'   A length-1 vector is recycled to all features.
+#'   `"both"`, a numeric value, or a numeric/character vector.
+#'   For feature-level vectors, length must be 1 or `length(features)`, and
+#'   each element may be a keyword or a numeric value (including numeric values
+#'   encoded as strings).
+#'   When `length(features) == 1`, `group.by` is not `NULL`, and
+#'   `split.plot = TRUE`, `vline` may alternatively have length equal to the
+#'   number of group levels, in which case each split panel receives its own
+#'   specification.
+#'   `"upper"`, `"lower"`, and `"both"` use median +/- `nmad` * MAD.
+#'   Length-1 vectors are recycled to all features or groups.
 #' @param layer Character, `NULL` or `NA`. Specifies which assay layer to extract feature
 #'   values from (e.g., `"data"`, `"counts"`, `"scale.data"`). `NULL` uses the
 #'   default layer. May be a single string (applied to all features) or a character
@@ -138,14 +144,11 @@ FeatureDensityPlot <- function(
   alpha = 0.3,
   pt.size = 0
 ) {
-  ## TODO: Mimic FeatureScatterPlot() and VlnPlotGradient() input validation and unify the code structure. This will reduce code duplication and improve maintainability.
-  ## TODO: modify FeatureDensityPlot so when there is only 1 feature and a vline vector is provided, it uses each element of the vline vector for each group.
-  ## TODO: Improve code documentation.
-
   # ─────────────────────────────────────────────────────────────────────────────
   # 1) Input validation
   #
-  # Validate early so the plotting code can stay compact and deterministic.
+  # Validate all public inputs up front so that the plotting code below can
+  # assume consistent, already-normalized objects and stay easier to read.
   # ─────────────────────────────────────────────────────────────────────────────
   if (!inherits(SeuratObject, "Seurat")) {
     stop("'SeuratObject' must be a Seurat object.")
@@ -199,58 +202,77 @@ FeatureDensityPlot <- function(
     }
   }
 
+  # Normalize a single vline entry to one of the internal representations used
+  # downstream: NULL, a keyword string, or a numeric scalar.
   normalizeVlineEntry <- function(
     x,
     valid.keywords = c("mean", "median", "upper", "lower", "both")
   ) {
-    # Normalize a single vline entry to either a keyword, a numeric scalar, or NULL.
+    # Treat explicit NULL-like character values as no reference line.
     if (
       is.null(x) || (is.character(x) && tolower(x) %in% c("null", "na", ""))
     ) {
       return(NULL)
     }
+
+    # Character inputs can be either a supported keyword or a numeric value
+    # encoded as text.
     if (is.character(x)) {
       x.lower <- tolower(x)
+
       if (x.lower %in% valid.keywords) {
         return(x.lower)
       }
+
       x.numeric <- suppressWarnings(as.numeric(x))
       if (!is.na(x.numeric)) {
         return(x.numeric)
       }
+
       stop(sprintf(
         "vline entry '%s' is not a valid keyword or numeric value.",
         x
       ))
     }
+
+    # Numeric inputs must be scalar and non-missing.
     if (is.numeric(x)) {
       if (length(x) == 1L && !is.na(x)) {
         return(x)
       }
+
       stop("numeric vline must be a single non-NA value.")
     }
+
+    # Any other type is unsupported.
     stop(sprintf(
       "vline entry has unexpected type: %s",
       paste(class(x), collapse = ", ")
     ))
   }
 
+  # Normalize a full vline input vector against an expected target length.
+  # The target length represents either the number of requested features or the
+  # number of group levels, depending on the plotting mode.
   normalizeVlineVector <- function(
     vline,
     target.length,
     valid.keywords = c("mean", "median", "upper", "lower", "both"),
     context = "features"
   ) {
-    # Normalize the raw vline input to a list of length target.length.
-    # Each element is either NULL, a keyword string, or a numeric scalar.
+    # A NULL vline means that no reference lines should be drawn for any target.
     if (is.null(vline)) {
       return(rep(list(NULL), target.length))
     }
+
+    # Numeric inputs are accepted as either one value recycled to all targets
+    # or one value per target.
     if (is.numeric(vline)) {
       if (length(vline) == 1L) {
         entry <- normalizeVlineEntry(vline, valid.keywords)
         return(rep(list(entry), target.length))
       }
+
       if (length(vline) == target.length) {
         return(lapply(
           as.list(vline),
@@ -258,6 +280,7 @@ FeatureDensityPlot <- function(
           valid.keywords = valid.keywords
         ))
       }
+
       stop(sprintf(
         "'vline' numeric input has length %d but %s has length %d; it must be length 1 or %d.",
         length(vline),
@@ -266,19 +289,23 @@ FeatureDensityPlot <- function(
         target.length
       ))
     }
+
+    # Character inputs follow the same contract as numeric inputs, but each
+    # element may be either a keyword or a numeric value encoded as a string.
     if (is.character(vline)) {
       if (length(vline) == 1L) {
         entry <- normalizeVlineEntry(vline, valid.keywords)
         return(rep(list(entry), target.length))
       }
+
       if (length(vline) == target.length) {
-        # Allow mixtures of keywords and numeric values encoded as strings.
         return(lapply(
           vline,
           normalizeVlineEntry,
           valid.keywords = valid.keywords
         ))
       }
+
       stop(sprintf(
         "'vline' character input has length %d but %s has length %d; it must be length 1 or %d.",
         length(vline),
@@ -287,17 +314,22 @@ FeatureDensityPlot <- function(
         target.length
       ))
     }
+
     stop("'vline' must be NULL, numeric, or character.")
   }
 
+  # Store allowed keyword vline specifications once so they can be reused both
+  # for feature-level and group-level normalization.
   valid.vline.values <- c("mean", "median", "upper", "lower", "both")
-  vline.per.feature <- normalizeVlineVector(
-    vline = vline,
-    target.length = length(features),
-    valid.keywords = valid.vline.values,
-    context = "features"
-  )
 
+  # Defer vline normalization until grouping has been resolved. This is required
+  # because a single-feature split plot may accept one vline entry per group
+  # level rather than one entry per feature.
+  vline.per.feature <- NULL
+
+  # Normalize layer input to one layer assignment per requested feature.
+  # Metadata variables will ignore the layer later, but keeping the vector
+  # aligned to features simplifies the rest of the code.
   if (is.null(layer)) {
     layer.per.feature <- rep(list(NULL), length(features))
   } else if (is.character(layer)) {
@@ -332,15 +364,16 @@ FeatureDensityPlot <- function(
   cells.use <- colnames(SeuratObject)
   has.grouping <- !is.null(group.by)
 
-  # Internal stable keys (one key per requested feature occurrence).
-  # These keys are used only for internal storage and lookup.
+  # Build one unique internal key per requested feature occurrence.
   feature.keys <- paste0(".feature_", seq_along(features))
 
-  # Resolve grouping values once so all feature fetches align to the same cells.
+  # Resolve grouping values once so every feature is fetched against the same
+  # cell order and all downstream joins remain positionally aligned.
   if (has.grouping) {
     if (!is.character(group.by) || length(group.by) != 1L) {
       stop("'group.by' must be NULL or a single character value.")
     }
+
     group.fetch.var <- group.by
     group.data <- Seurat::FetchData(
       object = SeuratObject,
@@ -348,6 +381,7 @@ FeatureDensityPlot <- function(
       cells = cells.use,
       clean = FALSE
     )
+
     group.values <- as.character(group.data[[group.fetch.var]])
     group.label <- group.by
   } else {
@@ -356,8 +390,8 @@ FeatureDensityPlot <- function(
     group.label <- "all"
   }
 
-  # Fetch each feature by position (not by name). Position-based alignment is the
-  # contract that links features, layer.per.feature, vline.per.feature, and titles.
+  # Fetch each feature independently, keeping feature position as the primary
+  # contract that links features, layer assignments, titles, and vline specs.
   feature.data <- lapply(seq_along(features), function(feature.id) {
     feature.name <- features[[feature.id]]
     feature.layer <- layer.per.feature[[feature.id]]
@@ -377,26 +411,26 @@ FeatureDensityPlot <- function(
       ))
     }
 
-    # Explicitly reindex by cells.use to preserve row alignment even if any future
-    # Seurat internals alter FetchData row ordering.
+    # Reindex explicitly to the input cell order so downstream columns remain
+    # aligned even if FetchData changes row ordering internally in the future.
     fetched[cells.use, feature.name, drop = TRUE]
   })
   names(feature.data) <- feature.keys
 
-  # Assemble internal plotting data with unique keys so duplicate feature names do
-  # not overwrite or alias one another.
+  # Assemble the plotting data frame using internal keys so duplicate feature
+  # names can coexist without overwriting one another.
   plot.data <- data.frame(row.names = cells.use)
   for (feature.id in seq_along(features)) {
     feature.key <- feature.keys[[feature.id]]
     plot.data[[feature.key]] <- feature.data[[feature.key]]
   }
 
-  # Append grouping column and remove rows without grouping values.
+  # Attach grouping information and drop cells without a valid grouping value.
   plot.data$.group <- group.values
   plot.data <- plot.data[!is.na(plot.data$.group), , drop = FALSE]
 
-  # Density requires numeric x values. Coercion is explicit and NA-producing
-  # coercions are handled downstream by removing missing values per feature.
+  # Density plots require numeric x values. Coercion is explicit, and any
+  # non-convertible values become NA and are removed later on a per-feature basis.
   for (feature.id in seq_along(features)) {
     feature.key <- feature.keys[[feature.id]]
     if (!is.numeric(plot.data[[feature.key]])) {
@@ -406,23 +440,10 @@ FeatureDensityPlot <- function(
     }
   }
 
-  # Build plot/list names as feature-layer labels.
-  #
-  # Why this block exists:
-  # - Users may request the same feature multiple times with different layers.
-  # - Appending the layer keeps those outputs distinguishable in the returned list.
-  # - Metadata columns do not conceptually belong to assay layers, so layer suffixes
-  #   are removed for metadata features to keep names clean and intuitive.
-  #
-  # Efficiency note:
-  # - We retrieve metadata column names exactly once.
-  # - Membership checks are vectorized with `%in%`.
-
-  # Retrieve metadata column names once (cheap, reused immediately below).
+  # Build user-facing plot names. This preserves layer-specific distinctions for
+  # repeated assay features while keeping metadata-derived names clean.
   metadata.colnames <- colnames(SeuratObject@meta.data)
 
-  # Convert per-feature layer entries to display strings in feature order.
-  # We map explicit NULL entries to "NULL" so each position has a string.
   layer.labels <- vapply(
     layer.per.feature,
     function(x) {
@@ -434,29 +455,24 @@ FeatureDensityPlot <- function(
     FUN.VALUE = character(1)
   )
 
-  # Initial names include layer suffix for every feature occurrence.
   plot.names <- paste0(features, "_", layer.labels)
 
-  # Identify metadata features once using vectorized lookup.
-  # This is done by feature name (user-facing), not internal keys.
+  # Metadata variables should not carry an assay-layer suffix in the returned
+  # plot names because that suffix is not meaningful to the user in that case.
   is.metadata.feature <- features %in% metadata.colnames
-
-  # For metadata features, remove the trailing layer suffix (`_<layer>`).
-  # This intentionally strips exactly one terminal suffix and leaves the base
-  # feature name intact, even if the feature string contains underscores.
   plot.names[is.metadata.feature] <- sub(
     "_[^_]*$",
     "",
     plot.names[is.metadata.feature]
   )
 
-  # Keep legacy cleanup so edge cases remain robust when layer labels are empty,
-  # NA-derived, or NULL-derived strings.
+  # Retain legacy cleanup for edge cases involving empty, NA, or NULL-like
+  # layer labels.
   plot.names <- gsub("_+$", "", plot.names)
   plot.names <- gsub("_NULL$", "", plot.names)
   plot.names <- gsub("_NA$", "", plot.names)
 
-  # Titles stay user-facing and index-aligned to features.
+  # Resolve final plot titles in the same order as the requested features.
   feature.titles <- if (is.null(plot.title)) {
     plot.names
   } else if (length(plot.title) == 1L) {
@@ -465,34 +481,50 @@ FeatureDensityPlot <- function(
     plot.title
   }
 
-  # Cache group levels once for split-plot branch.
+  # Cache the encountered group levels once for split plotting.
   group.levels <- unique(plot.data$.group)
   if (has.grouping && length(group.levels) == 0L) {
     stop("No groups available to plot after filtering missing grouping values.")
   }
 
-  # When only a single feature is requested and split.plot = TRUE, allow a
-  # per-group vline vector (length equal to number of group levels).
+  # Normalize vline only after group levels are known. This allows a
+  # single-feature split plot to accept one vline entry per group, while all
+  # other modes keep the standard one-entry-per-feature contract.
   vline.per.group <- NULL
-  if (has.grouping && split.plot && length(features) == 1L && !is.null(vline)) {
-    valid.vline.values <- c("mean", "median", "upper", "lower", "both")
+  if (has.grouping && split.plot && length(features) == 1L) {
     vline.per.group <- normalizeVlineVector(
       vline = vline,
       target.length = length(group.levels),
       valid.keywords = valid.vline.values,
       context = "groups"
     )
+
+    # Keep a feature-level placeholder so indexing by feature position still
+    # works in the main plotting loop.
+    vline.per.feature <- list(NULL)
+  } else {
+    vline.per.feature <- normalizeVlineVector(
+      vline = vline,
+      target.length = length(features),
+      valid.keywords = valid.vline.values,
+      context = "features"
+    )
   }
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 3) Helper functions
   # ─────────────────────────────────────────────────────────────────────────────
+
+  # Convert a normalized vline specification into one or more explicit
+  # x-intercepts for the current numeric vector.
   computeVlinePositions <- function(values, vline.spec, nmad.value) {
     values <- values[!is.na(values)]
+
     if (length(values) == 0L || is.null(vline.spec)) {
       return(data.frame(xintercept = numeric(0), stringsAsFactors = FALSE))
     }
 
+    # Numeric specifications are already concrete intercepts.
     if (is.numeric(vline.spec)) {
       return(data.frame(xintercept = vline.spec, stringsAsFactors = FALSE))
     }
@@ -507,6 +539,8 @@ FeatureDensityPlot <- function(
       return(data.frame(xintercept = median.value, stringsAsFactors = FALSE))
     }
 
+    # MAD-based thresholds require a valid MAD estimate. If MAD is unavailable,
+    # no keyword-based threshold line is returned.
     mad.value <- stats::mad(values, na.rm = TRUE)
     if (is.na(mad.value)) {
       return(data.frame(xintercept = numeric(0), stringsAsFactors = FALSE))
@@ -539,17 +573,23 @@ FeatureDensityPlot <- function(
     return(data.frame(xintercept = numeric(0), stringsAsFactors = FALSE))
   }
 
+  # Compute the single median x-intercept used for the optional black reference
+  # line that is independent from the red vline specification.
   computeMedianPositions <- function(values) {
     values <- values[!is.na(values)]
+
     if (length(values) == 0L) {
       return(data.frame(xintercept = numeric(0), stringsAsFactors = FALSE))
     }
-    return(data.frame(
+
+    data.frame(
       xintercept = stats::median(values),
       stringsAsFactors = FALSE
-    ))
+    )
   }
 
+  # Build one density panel. This helper is reused for ungrouped plots and for
+  # each per-group panel in split mode so the drawing logic lives in one place.
   buildSingleDensityPanel <- function(
     feature.df,
     x.label,
@@ -557,13 +597,23 @@ FeatureDensityPlot <- function(
     vline.spec
   ) {
     current.plot <- ggplot2::ggplot(feature.df, ggplot2::aes(x = value)) +
-      ggplot2::geom_density(fill = "lightblue", alpha = alpha, color = "black")
+      ggplot2::geom_density(
+        fill = "lightblue",
+        alpha = alpha,
+        color = "black"
+      )
 
+    # Add an optional rug to show the observed point distribution on the x-axis.
     if (pt.size > 0) {
       current.plot <- current.plot +
-        ggplot2::geom_rug(sides = "b", linewidth = pt.size, alpha = 0.35)
+        ggplot2::geom_rug(
+          sides = "b",
+          linewidth = pt.size,
+          alpha = 0.35
+        )
     }
 
+    # Add red reference line(s) derived from the normalized vline specification.
     vline.df <- computeVlinePositions(feature.df$value, vline.spec, nmad)
     if (nrow(vline.df) > 0L) {
       current.plot <- current.plot +
@@ -577,6 +627,7 @@ FeatureDensityPlot <- function(
         )
     }
 
+    # Add black median line(s) independently when requested.
     if (plot.median) {
       median.df <- computeMedianPositions(feature.df$value)
       if (nrow(median.df) > 0L) {
@@ -594,23 +645,32 @@ FeatureDensityPlot <- function(
 
     current.plot +
       ggplot2::theme_bw() +
-      ggplot2::labs(title = panel.title, x = x.label, y = "Density") +
-      ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
+      ggplot2::labs(
+        title = panel.title,
+        x = x.label,
+        y = "Density"
+      ) +
+      ggplot2::theme(
+        plot.title = ggplot2::element_text(hjust = 0.5)
+      )
   }
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 4) Feature-level plotting via top-level lapply
+  # 4) Feature-level plotting
   # ─────────────────────────────────────────────────────────────────────────────
   feature.plots <- lapply(seq_along(features), function(feature.id) {
-    # feature.name/feature.title are user-facing labels; feature.key is internal
-    # and unique per position, which preserves correct behavior for duplicates.
+    # Resolve all feature-specific inputs by position so duplicate feature names
+    # remain distinguishable internally.
     feature.name <- features[[feature.id]]
     feature.key <- feature.keys[[feature.id]]
     feature.title <- feature.titles[[feature.id]]
     feature.vline <- vline.per.feature[[feature.id]]
 
+    # Extract the current feature column plus grouping information.
     feature.df <- plot.data[, c(feature.key, ".group"), drop = FALSE]
     names(feature.df)[1] <- "value"
+
+    # Remove non-numeric or missing values before plotting.
     feature.df <- feature.df[!is.na(feature.df$value), , drop = FALSE]
 
     if (nrow(feature.df) == 0L) {
@@ -620,6 +680,7 @@ FeatureDensityPlot <- function(
       ))
     }
 
+    # Ungrouped mode always returns a single panel.
     if (!has.grouping) {
       return(buildSingleDensityPanel(
         feature.df = feature.df,
@@ -629,6 +690,8 @@ FeatureDensityPlot <- function(
       ))
     }
 
+    # Overlay mode keeps all groups in one panel and computes red/black
+    # reference lines independently within each group.
     if (!split.plot) {
       current.plot <- ggplot2::ggplot(
         feature.df,
@@ -647,6 +710,8 @@ FeatureDensityPlot <- function(
           )
       }
 
+      # In overlay mode, vline is interpreted at feature level and then evaluated
+      # separately within each group.
       if (!is.null(feature.vline)) {
         vline.df <- feature.df |>
           dplyr::group_by(.group) |>
@@ -705,18 +770,24 @@ FeatureDensityPlot <- function(
             x = feature.name,
             y = "Density"
           ) +
-          ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
+          ggplot2::theme(
+            plot.title = ggplot2::element_text(hjust = 0.5)
+          )
       )
     }
 
+    # Split mode builds one panel per group. When exactly one feature is plotted,
+    # each panel may receive its own vline specification via vline.per.group.
     group.plots <- lapply(seq_along(group.levels), function(group.index) {
       group.name <- group.levels[[group.index]]
       group.df <- feature.df[feature.df$.group == group.name, , drop = FALSE]
+
       panel.vline <- if (!is.null(vline.per.group) && length(features) == 1L) {
         vline.per.group[[group.index]]
       } else {
         feature.vline
       }
+
       buildSingleDensityPanel(
         feature.df = group.df,
         x.label = feature.name,
@@ -725,32 +796,36 @@ FeatureDensityPlot <- function(
       )
     })
 
+    # Use the user-provided ncol when available; otherwise infer a roughly square
+    # layout for the split panels.
     ncol.groups <- if (!is.null(ncol)) {
       ncol
     } else {
       ceiling(sqrt(length(group.plots)))
     }
 
-    return(
-      patchwork::wrap_plots(group.plots, ncol = ncol.groups) +
-        patchwork::plot_annotation(
-          title = feature.title,
-          theme = ggplot2::theme(
-            plot.title = ggplot2::element_text(hjust = 0.5, face = "bold")
-          )
+    patchwork::wrap_plots(group.plots, ncol = ncol.groups) +
+      patchwork::plot_annotation(
+        title = feature.title,
+        theme = ggplot2::theme(
+          plot.title = ggplot2::element_text(hjust = 0.5, face = "bold")
         )
-    )
+      )
   })
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 5) Return-shape contract
   # ─────────────────────────────────────────────────────────────────────────────
 
+  # Preserve user-facing names in the returned list.
   names(feature.plots) <- plot.names
 
+  # Return a single plot object for one feature to keep the API ergonomic and
+  # backward compatible.
   if (length(feature.plots) == 1L) {
     return(feature.plots[[1L]])
   }
 
+  # Return a named list for multi-feature calls.
   return(feature.plots)
 }
