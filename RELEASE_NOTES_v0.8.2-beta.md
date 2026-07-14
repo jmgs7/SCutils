@@ -6,6 +6,8 @@
 
 - We have included a Utils module where we will upload utility functions. The first function of this module, `ExtractFeatureTestResults()`, retrieves and summarizes the per-cell results from the MALAT1 test of `CalculateQC()`. This function is designed to facilitate the extraction of feature threshold test results from a Seurat object, providing users with a convenient way to access and analyze these results.
 
+- The `FeatureDensityPlot()` now accepts a vector of vlines per group when plotting only one feature to allow individual groups to plot vertical lines for each (split.plot must be `TRUE`). This enhancement allows users to visualize group-specific thresholds or key values on the density plot, providing a clearer understanding of the distribution of feature expression levels in relation to the specified vline values. This is ideal to visualize the MALAT1 threshold test results for each group in a single plot, making it easier to compare and interpret the data across different groups.
+
 ### 🛠️ Bug Fixes
 
 - Improvement of code readability and maintainability by refactoring the `FeatureDensityPlot()` function. This includes better organization of the code, clearer variable names, and enhanced documentation to make it easier for users to understand and utilize the function effectively.
