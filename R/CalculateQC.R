@@ -11,7 +11,7 @@
 #' the total number of log-normalized counts and features per cell, as well as cell cycle scoring
 #' using updated S and G2/M phase gene sets.
 #'
-#' #' @details The following metadata columns are added to SeuObj:
+#' #' @details The following metadata columns are added to SeuratObject:
 #' \itemize{
 #'   \item percent.mt: percentage of counts matching '^MT-'
 #'   \item percent.ribo: percentage of counts matching '^RP[SL]'
@@ -23,10 +23,10 @@
 #'   \item complexity: ratio log10_nFeature_RNA / log10_nCount_RNA
 #' }
 #'
-#' @param SeuObj A Seurat object. The function reads counts from the active assay and adds metadata columns.
+#' @param SeuratObject A Seurat object. The function reads counts from the active assay and adds metadata columns.
 #'   Patterns are interpreted as regular expressions by Seurat::PercentageFeatureSet.
-#' @param assay Default: "RNA". The assay in SeuObj to use for QC calculations.
-#' @param layers Default: `NULL`. If normalization has been applied to the SeuObj, you can provide
+#' @param assay Default: "RNA". The assay in SeuratObject to use for QC calculations.
+#' @param layers Default: `NULL`. If normalization has been applied to the SeuratObject, you can provide
 #'   the layers where the data is stored. If NULL, the function will attempt to find all log-normalized data layers
 #'   in the Seurat object. If not found, the function will skip log-normalized QC calculations.
 #' @param perform.cell.cycle.scoring Default: `TRUE`. If `TRUE`, the function will perform cell cycle scoring
@@ -45,10 +45,10 @@
 #' @return The input Seurat object with the new metadata columns added.
 #' @examples
 #'   \dontrun{
-#'     SeuObj <- CalculateQC(SeuObj)
-#'     SeuObj <- CalculateQC(SeuObj, layers = c("data", "data_layer2"))
-#'     SeuObj <- CalculateQC(SeuObj, perform.cell.cycle.scoring = FALSE)
-#'     SeuObj <- CalculateQC(SeuObj, assay = "RNA", perform.MALAT1.test = FALSE)
+#'     SeuratObject <- CalculateQC(SeuratObject)
+#'     SeuratObject <- CalculateQC(SeuratObject, layers = c("data", "data_layer2"))
+#'     SeuratObject <- CalculateQC(SeuratObject, perform.cell.cycle.scoring = FALSE)
+#'     SeuratObject <- CalculateQC(SeuratObject, assay = "RNA", perform.MALAT1.test = FALSE)
 #' }
 #'
 #' @import Seurat
@@ -58,7 +58,7 @@
 #' @export
 
 CalculateQC <- function(
-  SeuObj,
+  SeuratObject,
   assay = "RNA",
   layers = NULL,
   perform.cell.cycle.scoring = TRUE,
@@ -66,54 +66,54 @@ CalculateQC <- function(
   ...
 ) {
   # Estimation of metrics
-  SeuObj@meta.data$percent.mt <- Seurat::PercentageFeatureSet(
-    SeuObj,
+  SeuratObject@meta.data$percent.mt <- Seurat::PercentageFeatureSet(
+    SeuratObject,
     pattern = "^MT-"
   ) # Percentage of counts corresponding to mitochondrial genes.
-  SeuObj@meta.data$percent.ribo <- Seurat::PercentageFeatureSet(
-    SeuObj,
+  SeuratObject@meta.data$percent.ribo <- Seurat::PercentageFeatureSet(
+    SeuratObject,
     "^RP[SL]"
   ) # Percentage of counts corresponding to ribosomal genes.
-  SeuObj@meta.data$percent.hb <- Seurat::PercentageFeatureSet(
-    SeuObj,
+  SeuratObject@meta.data$percent.hb <- Seurat::PercentageFeatureSet(
+    SeuratObject,
     "^HB[^(P)]"
   ) # Percentage of counts corresponding to hemoglobin.
-  SeuObj@meta.data$percent.ig <- Seurat::PercentageFeatureSet(
-    SeuObj,
+  SeuratObject@meta.data$percent.ig <- Seurat::PercentageFeatureSet(
+    SeuratObject,
     "^IG"
   ) # Percentage of counts corresponding to immunoglobulins.
-  SeuObj@meta.data$percent.plat <- Seurat::PercentageFeatureSet(
-    SeuObj,
+  SeuratObject@meta.data$percent.plat <- Seurat::PercentageFeatureSet(
+    SeuratObject,
     "PECAM1|PF4"
   ) # Percentage of counts corresponding to genes associated with platelets.
-  SeuObj@meta.data$percent.MALAT1 <- Seurat::PercentageFeatureSet(
-    SeuObj,
+  SeuratObject@meta.data$percent.MALAT1 <- Seurat::PercentageFeatureSet(
+    SeuratObject,
     pattern = "MALAT1"
   ) # Percentage of counts corresponding to MALAT1.
-  SeuObj@meta.data$percent.S100A9 <- Seurat::PercentageFeatureSet(
-    SeuObj,
+  SeuratObject@meta.data$percent.S100A9 <- Seurat::PercentageFeatureSet(
+    SeuratObject,
     pattern = "S100A9"
   ) # Percentage of counts corresponding to S100A9.
-  SeuObj@meta.data$percent.S100A8 <- Seurat::PercentageFeatureSet(
-    SeuObj,
+  SeuratObject@meta.data$percent.S100A8 <- Seurat::PercentageFeatureSet(
+    SeuratObject,
     pattern = "S100A8"
   ) # Percentage of counts corresponding to S100A8.
-  SeuObj@meta.data$percent.FCGR3B <- Seurat::PercentageFeatureSet(
-    SeuObj,
+  SeuratObject@meta.data$percent.FCGR3B <- Seurat::PercentageFeatureSet(
+    SeuratObject,
     pattern = "FCGR3B"
   ) # Percentage of counts corresponding to FCGR3B.
-  SeuObj@meta.data$log10_nFeature_RNA <- log10(
-    SeuObj@meta.data$nFeature_RNA
+  SeuratObject@meta.data$log10_nFeature_RNA <- log10(
+    SeuratObject@meta.data$nFeature_RNA
   )
-  SeuObj@meta.data$log10_nCount_RNA <- log10(
-    SeuObj@meta.data$nCount_RNA
+  SeuratObject@meta.data$log10_nCount_RNA <- log10(
+    SeuratObject@meta.data$nCount_RNA
   )
-  SeuObj@meta.data$complexity <- SeuObj@meta.data$log10_nFeature_RNA /
-    SeuObj@meta.data$log10_nCount_RNA # Complexity, corresponding to the amount of genes that are covered by the counts of each cell.
+  SeuratObject@meta.data$complexity <- SeuratObject@meta.data$log10_nFeature_RNA /
+    SeuratObject@meta.data$log10_nCount_RNA # Complexity, corresponding to the amount of genes that are covered by the counts of each cell.
 
   # This steps are only if the Seurat object has log-normalized data layers, which are not always present.
   object.layers <- SeuratObject::Layers(
-    SeuObj,
+    SeuratObject,
     assay = assay
   )
   if (!is.null(layers)) {
@@ -129,13 +129,13 @@ CalculateQC <- function(
       warning(
         "User did not specified any layers and no log-normalized data layers were found in the Seurat object. Skipping log-normalized QC calculations."
       )
-      return(SeuObj)
+      return(SeuratObject)
     }
     layers <- object.layers[grepl("data", object.layers)]
   }
 
   DataLayersQC <- function(
-    SeuObj,
+    SeuratObject,
     assay = "RNA",
     layers = NULL,
     perform.cell.cycle.scoring = TRUE,
@@ -149,7 +149,7 @@ CalculateQC <- function(
     # 1. Fetch all log-normalized 'data' layers names.
     if (is.null(layers)) {
       layers <- SeuratObject::Layers(
-        SeuObj,
+        SeuratObject,
         assay = assay,
         search = "data"
       )
@@ -161,7 +161,7 @@ CalculateQC <- function(
     log.metadata <- lapply(layers, function(layer) {
       # Extract the layer data to compute QC metrics.
       layer.data <- SeuratObject::LayerData(
-        SeuObj,
+        SeuratObject,
         assay = assay,
         layer = layer
       )
@@ -188,16 +188,16 @@ CalculateQC <- function(
     # Remve the cell.id column from log.metadata as it is now redundant with the row names.
     log.metadata$cell.id <- NULL
     # Add the calculated QC metrics to the Seurat object's metadata.
-    SeuObj <- Seurat::AddMetaData(
-      object = SeuObj,
+    SeuratObject <- Seurat::AddMetaData(
+      object = SeuratObject,
       metadata = log.metadata
     )
 
     # Add cell cycle scoring results to the Seurat object's metadata if requested.
     # Perform cell cycle scoring if requested.
     if (perform.cell.cycle.scoring) {
-      SeuObj <- suppressWarnings(Seurat::CellCycleScoring(
-        SeuObj,
+      SeuratObject <- suppressWarnings(Seurat::CellCycleScoring(
+        SeuratObject,
         # Uses Seurat S and G2M genes dataset.
         s.features = cc.genes.updated.2019$s.genes,
         g2m.features = cc.genes.updated.2019$g2m.genes
@@ -205,8 +205,8 @@ CalculateQC <- function(
 
       # Apply the MALAT1 thresholding function to the Seurat object upon user request
       if (perform.MALAT1.test) {
-        SeuObj <- .CalculateFeatureThresholdSeurat(
-          SeuObj = SeuObj,
+        SeuratObject <- .CalculateFeatureThresholdSeurat(
+          SeuratObject = SeuratObject,
           assay = assay,
           layers = layers,
           feature = "MALAT1",
@@ -215,12 +215,12 @@ CalculateQC <- function(
       }
     }
 
-    return(SeuObj)
+    return(SeuratObject)
   }
 
   # Apply the helper function to the Seurat object.
-  SeuObj <- DataLayersQC(
-    SeuObj,
+  SeuratObject <- DataLayersQC(
+    SeuratObject,
     assay = assay,
     layers = layers,
     perform.cell.cycle.scoring = perform.cell.cycle.scoring,
@@ -228,5 +228,5 @@ CalculateQC <- function(
     ...
   )
 
-  return(SeuObj)
+  return(SeuratObject)
 }

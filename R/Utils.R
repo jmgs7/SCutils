@@ -1,7 +1,7 @@
-ExtractFeatureTestResults <- function(SeuObj, batch.col, feature = "MALAT1") {
+ExtractFeatureTestResults <- function(SeuratObject, batch.col, feature = "MALAT1") {
   threshold.col <- paste0(feature, ".threshold")
   pass.col <- paste0(feature, ".pass")
-  meta.data.cols <- colnames(SeuObj@meta.data)
+  meta.data.cols <- colnames(SeuratObject@meta.data)
 
   if (!threshold.col %in% meta.data.cols) {
     stop(threshold.col, " column not found in meta.data")
@@ -13,9 +13,9 @@ ExtractFeatureTestResults <- function(SeuObj, batch.col, feature = "MALAT1") {
 
   # Create a data frame with all the information of the test.
   feature.test <- data.frame(
-    batch = SeuObj@meta.data[[batch.col]],
-    feature.threshold = SeuObj@meta.data[[threshold.col]],
-    feature.pass = SeuObj@meta.data[[pass.col]]
+    batch = SeuratObject@meta.data[[batch.col]],
+    feature.threshold = SeuratObject@meta.data[[threshold.col]],
+    feature.pass = SeuratObject@meta.data[[pass.col]]
   ) |> # Get the threshold per library and compute the pass rate.
     dplyr::group_by(batch) |>
     dplyr::summarise(
@@ -29,7 +29,7 @@ ExtractFeatureTestResults <- function(SeuObj, batch.col, feature = "MALAT1") {
 
   # Keep the same order as the SeuratObject.
   row.names(feature.test) <- feature.test$batch
-  feature.test <- feature.test[unique(SeuObj@meta.data[[batch.col]]), ]
+  feature.test <- feature.test[unique(SeuratObject@meta.data[[batch.col]]), ]
 
   # Keep the same names as the SeuratObject.
   names(feature.test) <- c(
