@@ -115,7 +115,10 @@ FeatureDensityPlot <- function(
   alpha = 0.3,
   pt.size = 0
 ) {
-  ##TODO: Mimic FeatureScatterPlot() and VlnPlotGradient() input validation and unify the code structure. This will reduce code duplication and improve maintainability.
+  ## TODO: Mimic FeatureScatterPlot() and VlnPlotGradient() input validation and unify the code structure. This will reduce code duplication and improve maintainability.
+  ## TODO: modify FeatureDensityPlot so when there is only 1 feature and a vline vector is provided, it uses each element of the vline vector for each group.
+  ## TODO: Improve code documentation.
+
   # ─────────────────────────────────────────────────────────────────────────────
   # 1) Input validation
   #
