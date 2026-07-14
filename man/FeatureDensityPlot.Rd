@@ -41,10 +41,16 @@ feature plot when `split.plot = TRUE`. If `NULL`, inferred automatically.}
 
 \item{vline}{Optional reference-line specification (drawn in dashed red).
 Accepted values: `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`,
-`"both"`, a numeric value, or a character vector with one entry per feature.
-For vector input, each element follows the same rules as the scalar form.
-`"upper"`, `"lower"`, and `"both"` use median +/- `nmad`*MAD.
-A length-1 vector is recycled to all features.}
+`"both"`, a numeric value, or a numeric/character vector.
+For feature-level vectors, length must be 1 or `length(features)`, and
+each element may be a keyword or a numeric value (including numeric values
+encoded as strings).
+When `length(features) == 1`, `group.by` is not `NULL`, and
+`split.plot = TRUE`, `vline` may alternatively have length equal to the
+number of group levels, in which case each split panel receives its own
+specification.
+`"upper"`, `"lower"`, and `"both"` use median +/- `nmad` * MAD.
+Length-1 vectors are recycled to all features or groups.}
 
 \item{layer}{Character, `NULL` or `NA`. Specifies which assay layer to extract feature
 values from (e.g., `"data"`, `"counts"`, `"scale.data"`). `NULL` uses the
@@ -102,6 +108,11 @@ assay features use it to select the desired matrix.
 **Efficiency**: A top-level `lapply()` iterates over features. A second nested
 `lapply()` is used only when `split.plot = TRUE` to iterate over group levels.
 This structure keeps per-feature data local and reduces indexing overhead.
+
+**Vline semantics**: Keyword inputs ("mean", "median", "upper", "lower", "both")
+compute reference positions from the empirical distribution per feature or per
+group. Numeric inputs are used as explicit x-intercepts. When a per-group vector
+is supplied for a single feature, each group panel uses its own element.
 }
 \examples{
 \dontrun{
@@ -127,6 +138,24 @@ FeatureDensityPlot(
   SeuratObject,
   features = c("percent.mt", "CD3D", "nCount_RNA"),
   layer = c(NA, "counts", NA)  # CD3D from raw counts, others from metadata
+)
+
+# Single feature with per-group vlines (one entry per batch level)
+FeatureDensityPlot(
+  SeuratObject,
+  features = "percent.mt",
+  group.by = "batch",
+  split.plot = TRUE,
+  vline = c("upper", "lower")
+)
+
+# Single feature with numeric vlines per group
+FeatureDensityPlot(
+  SeuratObject,
+  features = "CD3D",
+  group.by = "ident",
+  split.plot = TRUE,
+  vline = c(0.5, 1.0, 1.5)
 )
 }
 

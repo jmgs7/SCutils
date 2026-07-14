@@ -5,20 +5,21 @@
 \title{CalculateQC}
 \usage{
 CalculateQC(
-  SeuObj,
+  SeuratObject,
   assay = "RNA",
   layers = NULL,
   perform.cell.cycle.scoring = TRUE,
-  perform.MALAT1.test = TRUE
+  perform.MALAT1.test = TRUE,
+  ...
 )
 }
 \arguments{
-\item{SeuObj}{A Seurat object. The function reads counts from the active assay and adds metadata columns.
+\item{SeuratObject}{A Seurat object. The function reads counts from the active assay and adds metadata columns.
 Patterns are interpreted as regular expressions by Seurat::PercentageFeatureSet.}
 
-\item{assay}{Default: "RNA". The assay in SeuObj to use for QC calculations.}
+\item{assay}{Default: "RNA". The assay in SeuratObject to use for QC calculations.}
 
-\item{layers}{Default: `NULL`. If normalization has been applied to the SeuObj, you can provide
+\item{layers}{Default: `NULL`. If normalization has been applied to the SeuratObject, you can provide
 the layers where the data is stored. If NULL, the function will attempt to find all log-normalized data layers
 in the Seurat object. If not found, the function will skip log-normalized QC calculations.}
 
@@ -27,9 +28,22 @@ using the updated S and G2/M phase gene sets. If `FALSE`, cell cycle scoring wil
 
 \item{perform.MALAT1.test}{Default: `TRUE`. If `TRUE`, the function will apply the MALAT1 thresholding
 function to the Seurat object. If `FALSE`, the MALAT1 thresholding will be skipped.}
+
+\item{...}{Additional arguments passed to the underlying `.CalculateFeatureThresholdSeurat()`
+ function, such as:
+\itemize{
+  \item \code{bw.bandwidth}: Bandwidth for kernel density estimation (default: 0.01).
+  \item \code{chosen.min}: Chosen minimum which a peak should be considered the dataset
+    peak (default: 2).
+  \item \code{smooth.spar}: Smoothing parameter for density estimation (default: 2).
+  \item \code{abs.min}: Absolute minimum threshold (default: 1).
+  \item \code{rough.max}: Rough expected position of the MALAT1 expression peak (default: 6).
+  \item \code{conservative.threshold}: Conservative threshold to apply when impossible to find local
+    minimum (default: 2).
+}}
 }
 \value{
-The input Seurat object with the new metadata columns added.
+SeuratObject. The input Seurat object with the new metadata columns added.
 }
 \description{
 Estimate common single-cell QC metrics and append them to a Seurat object's metadata.
@@ -43,7 +57,7 @@ If the Seurat object contains log-normalized data layers, the function will also
 the total number of log-normalized counts and features per cell, as well as cell cycle scoring
 using updated S and G2/M phase gene sets.
 
-#' @details The following metadata columns are added to SeuObj:
+#' @details The following metadata columns are added to SeuratObject:
 \itemize{
   \item percent.mt: percentage of counts matching '^MT-'
   \item percent.ribo: percentage of counts matching '^RP[SL]'
@@ -57,10 +71,10 @@ using updated S and G2/M phase gene sets.
 }
 \examples{
   \dontrun{
-    SeuObj <- CalculateQC(SeuObj)
-    SeuObj <- CalculateQC(SeuObj, layers = c("data", "data_layer2"))
-    SeuObj <- CalculateQC(SeuObj, perform.cell.cycle.scoring = FALSE)
-    SeuObj <- CalculateQC(SeuObj, assay = "RNA", perform.MALAT1.test = FALSE)
+    SeuratObject <- CalculateQC(SeuratObject)
+    SeuratObject <- CalculateQC(SeuratObject, layers = c("data", "data_layer2"))
+    SeuratObject <- CalculateQC(SeuratObject, perform.cell.cycle.scoring = FALSE)
+    SeuratObject <- CalculateQC(SeuratObject, assay = "RNA", perform.MALAT1.test = FALSE)
 }
 
 }

@@ -29,11 +29,13 @@
 #' @param ... Additional arguments passed to the underlying `.ComputeFeatureThreshold` function, such as:
 #'  \itemize{
 #'    \item \code{bw.bandwidth}: Bandwidth for kernel density estimation (default: 0.01).
-#'    \item \code{chosen.min}: Chosen minimum which a peak should be considered the dataset peak (default: 2).
+#'    \item \code{chosen.min}: Chosen minimum which a peak should be considered the dataset
+#'      peak (default: 2).
 #'    \item \code{smooth.spar}: Smoothing parameter for density estimation (default: 2).
 #'    \item \code{abs.min}: Absolute minimum threshold (default: 1).
 #'    \item \code{rough.max}: Rough expected position of the MALAT1 expression peak (default: 6).
-#'    \item \code{conservative.threshold}: Conservative threshold to apply when impossible to find local minimum (default: 2).
+#'    \item \code{conservative.threshold}: Conservative threshold to apply when impossible to find local
+#'      minimum (default: 2).
 #' }
 #'
 #' @import Seurat
