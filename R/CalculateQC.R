@@ -63,22 +63,6 @@
 #' @importFrom data.table rbindlist
 #'
 #' @export
-
-# Generate pattern dataframe for select the appropriate gene patterns for each species.
-patterns <- data.frame(
-  species = c("human", "mouse"),
-  mt.pattern = c("^MT-", "^mt-"),
-  ribo.pattern = c("^RP[SL]", "^Rp[sl]"),
-  hb.pattern = c("^HB[^(P)]", "^Hb[^(p)]"),
-  ig.pattern = c("^IG", "^Ig"),
-  plat.pattern = c("PECAM1|PF4", "Pecam1|Pf4"),
-  S100A9.pattern = c("S100A9", "S100a9"),
-  S100A8.pattern = c("S100A8", "S100a8"),
-  FCGR3B.pattern = c("FCGR3B", "Fcgr3b"),
-  MALAT1.pattern = c("MALAT1", "Malat1")
-)
-rownames(patterns) <- patterns$species
-
 CalculateQC <- function(
   SeuratObject,
   assay = "RNA",
@@ -122,6 +106,21 @@ CalculateQC <- function(
       "Invalid perform.MALAT1.test provided. Please provide a single logical value (TRUE or FALSE)."
     )
   }
+
+  # Generate pattern dataframe for select the appropriate gene patterns for each species.
+  patterns <- data.frame(
+    species = c("human", "mouse"),
+    mt.pattern = c("^MT-", "^mt-"),
+    ribo.pattern = c("^RP[SL]", "^Rp[sl]"),
+    hb.pattern = c("^HB[^(P)]", "^Hb[^(p)]"),
+    ig.pattern = c("^IG", "^Ig"),
+    plat.pattern = c("PECAM1|PF4", "Pecam1|Pf4"),
+    S100A9.pattern = c("S100A9", "S100a9"),
+    S100A8.pattern = c("S100A8", "S100a8"),
+    FCGR3B.pattern = c("FCGR3B", "Fcgr3b"),
+    MALAT1.pattern = c("MALAT1", "Malat1")
+  )
+  rownames(patterns) <- patterns$species
 
   # Estimation of metrics
   SeuratObject@meta.data$percent.mt <- Seurat::PercentageFeatureSet(
