@@ -5,8 +5,7 @@ An R package providing single-cell RNA-seq utility functions to complement Seura
 ## Status and version
 
 - Current package version: **0.8.3**
-- Status: **beta**; interfaces may still evolve as additional single-cell use cases are hardened.
-
+- Status: **beta**; some features are still under development and may change in future releases. Please report any issues on GitHub.
 
 ## Installation
 
@@ -72,13 +71,24 @@ Computes common single-cell QC metrics and appends them directly to `SeuratObjec
 
 **Always-computed columns** (from raw counts):
 
-- `percent.mt`, `percent.ribo`, `percent.hb`, `percent.ig`, `percent.plat`
-- `percent.MALAT1`, `percent.S100A9`, `percent.S100A8`, `percent.FCGR3B`
-- `log10_nFeature_RNA`, `log10_nCount_RNA`, `complexity`
+- `percent.mt`: The percentage of mitochondrial gene counts per cell, computed from the `^MT-` gene pattern (human) or `^mt-` (mouse).
+- `percent.ribo`: The percentage of ribosomal gene counts per cell, computed from the `^RP[SL]` gene pattern (human) or `^Rp[sl]` (mouse).
+- `percent.hb`: The percentage of hemoglobin gene counts per cell, computed from the `^HB[^(P)]"` gene pattern (human) or `^Hb^(p)]"` (mouse).
+- `percent.ig`: The percentage of immunoglobulin gene counts per cell, computed from the `^IG` gene pattern (human) or `^Ig` (mouse).
+- `percent.plat`: The percentage of platelet gene counts per cell, computed from the `^PPBP|^PF4` gene pattern (human) or `^Ppbp|^Pf4` (mouse).
+- `percent.MALAT1`: The percentage of MALAT1 gene counts per cell, computed from the `MALAT1` gene pattern (human) or `Malat1` (mouse).
+- `percent.S100A9`: The percentage of S100A9 gene counts per cell, computed from the `S100A9` gene pattern (human) or `S100a9` (mouse).
+- `percent.S100A8`: The percentage of S100A8 gene counts per cell, computed from the `S100A8` gene pattern (human) or `S100a8` (mouse).
+- `percent.FCGR3B`: The percentage of FCGR3B gene counts per cell, computed from the `FCGR3B` gene pattern (human) or `Fcgr3b` (mouse).
+- `log10_nFeature_RNA`: The log10 of the number of features per cell, computed from the `nFeature_RNA` column.
+- `log10_nCount_RNA`: The log10 of the number of counts per cell, computed from the `nCount_RNA` column.
+- `complexity`: The complexity of the library per cell, computed as `log10(nFeature_RNA) / log10(nCount_RNA)`.
+
+
 
 **Conditionally computed** (requires normalized counts in `data` layer):
 
-- `nCount_logRNA`, `nFeature_logRNA` — log-normalized count and detected feature totals per cell.
+- `nCount_logRNA`, `nFeature_logRNA`: log-normalized count and detected feature totals per cell.
 - Cell cycle scoring (S and G2M scores, `Phase`) — when `perform.cell.cycle.scoring = TRUE`.
 - MALAT1 thresholding — when `perform.MALAT1.test = TRUE`; adds `MALAT1.threshold` (numeric) and `MALAT1.pass` (logical) columns. See the [feature_threshold](https://github.com/jmgs7/feature_threshold) repository for details.
 
@@ -356,38 +366,17 @@ The following functions are internal helpers not exported from the namespace. Th
 
 Computes an expression threshold for a single feature from a normalized counts vector using kernel density estimation and smoothing splines. The threshold corresponds to the left quadratic intercept of the density curve, with fallback to a conservative default value.
 
-| Parameter | Default | Description |
-| :-- | :-- | :-- |
-| `counts.vector` | — | Numeric vector of normalized feature expression values |
-| `bw.bandwidth` | `0.01` | Bandwidth passed to `stats::density()` |
-| `chosen.min` | `2` | Minimum feature value above which the threshold is searched |
-| `smooth.spar` | `1` | Smoothing parameter passed to `stats::smooth.spline()` |
-| `abs.min` | `1` | Absolute minimum allowed threshold value |
-| `rough.max` | `6` | Rough expected position of the density peak |
-| `conservative.threshold` | `2` | Fallback threshold when automatic detection fails |
-
 ### `.CalculateFeatureThresholdSeurat()`
 
 Applies `.ComputeFeatureThreshold()` across all layers of a Seurat assay and stores per-cell results as `<feature>.threshold` (numeric) and `<feature>.pass` (logical) in `meta.data`.
 
-| Parameter | Default | Description |
-| :-- | :-- | :-- |
-| `SeuratObject` | — | A Seurat object with normalized counts |
-| `assay` | `"RNA"` | Assay to use |
-| `layers` | `NULL` | Layer(s) to process; `NULL` processes all available `data.*` layers |
-| `feature` | `"MALAT1"` | Feature name to threshold |
-| `...` | | Additional arguments forwarded to `.ComputeFeatureThreshold()` |
-
-### `ConvertEnsembleToSymbol2()`
+### `.ConvertEnsembleToSymbol2()`
 
 Converts ENSEMBL gene IDs to gene symbols for a raw count matrix using `biomaRt`. Returns the filtered matrix with symbol rownames. Requires `biomaRt` and `dplyr`; not exported.
 
-| Parameter | Default | Description |
-| :-- | :-- | :-- |
-| `mat` | — | Matrix with ENSEMBL IDs as rownames |
-| `mirror` | `NULL` | Ensembl BioMart mirror to use |
-| `species` | `c("human", "mouse")` | Species for symbol lookup |
+### `.SetCommonScales()`
 
+Sets common x and y axis limits across a `patchwork` joined ggplot object. Used internally by `FeatureScatterGradient()` and `FeatureDensityPlot()` when `common.scales = TRUE`.
 
 ***
 
@@ -395,8 +384,8 @@ Converts ENSEMBL gene IDs to gene symbols for a raw count matrix using `biomaRt`
 
 | Package | Source |
 | :-- | :-- |
-| Seurat | CRAN / Bioconductor |
-| SeuratObject | CRAN / Bioconductor |
+| Seurat | CRAN  |
+| SeuratObject | CRAN |
 | ggplot2 | CRAN |
 | dplyr | CRAN |
 | patchwork | CRAN |
@@ -406,7 +395,6 @@ Converts ENSEMBL gene IDs to gene symbols for a raw count matrix using `biomaRt`
 | scales | CRAN |
 | BPCells | GitHub (`bnprks/BPCells`) |
 | stats | base R |
-
 
 ***
 
@@ -460,6 +448,7 @@ Converts ENSEMBL gene IDs to gene symbols for a raw count matrix using `biomaRt`
 
 - `CalculateCDR` adapted from [conquer_comparison](https://github.com/csoneson/conquer_comparison/blob/master/scripts/apply_MASTcpmDetRate.R) by Charlotte Soneson.
 
+ - MALAT1 thresholding logic adapted from [BaderLab's MALAT1_threshold] (https://github.com/BaderLab/MALAT1_threshold)
 
 ## License
 

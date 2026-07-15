@@ -29,6 +29,8 @@
 #' @param layers Default: `NULL`. If normalization has been applied to the SeuratObject, you can provide
 #'   the layers where the data is stored. If NULL, the function will attempt to find all log-normalized data layers
 #'   in the Seurat object. If not found, the function will skip log-normalized QC calculations.
+#' @param species Default: "human". The species of the dataset, used to select the appropriate gene sets for cell cycle scoring. Currently
+#'   supports "human" and "mouse".
 #' @param perform.cell.cycle.scoring Default: `TRUE`. If `TRUE`, the function will perform cell cycle scoring
 #'   using the updated S and G2/M phase gene sets. If `FALSE`, cell cycle scoring will be skipped.
 #' @param perform.MALAT1.test Default: `TRUE`. If `TRUE`, the function will apply the MALAT1 thresholding
@@ -52,7 +54,7 @@
 #'   \dontrun{
 #'     SeuratObject <- CalculateQC(SeuratObject)
 #'     SeuratObject <- CalculateQC(SeuratObject, layers = c("data", "data_layer2"))
-#'     SeuratObject <- CalculateQC(SeuratObject, perform.cell.cycle.scoring = FALSE)
+#'     SeuratObject <- CalculateQC(SeuratObject, species = "mouse", perform.cell.cycle.scoring = FALSE)
 #'     SeuratObject <- CalculateQC(SeuratObject, assay = "RNA", perform.MALAT1.test = FALSE)
 #' }
 #'
@@ -62,51 +64,103 @@
 #' @importFrom data.table rbindlist
 #'
 #' @export
+#'
+
+# Generate pattern dataframe for select the appropriate gene patterns for each species.
+patterns <- data.frame(
+  species = c("human", "mouse"),
+  mt.pattern = c("^MT-", "^mt-"),
+  ribo.pattern = c("^RP[SL]", "^Rp[sl]"),
+  hb.pattern = c("^HB[^(P)]", "^Hb[^(p)]"),
+  ig.pattern = c("^IG", "^Ig"),
+  plat.pattern = c("PECAM1|PF4", "Pecam1|Pf4"),
+  S100A9.pattern = c("S100A9", "S100a9"),
+  S100A8.pattern = c("S100A8", "S100a8"),
+  FCGR3B.pattern = c("FCGR3B", "Fcgr3b"),
+  MALAT1.pattern = c("MALAT1", "Malat1")
+)
+rownames(patterns) <- patterns$species
 
 CalculateQC <- function(
   SeuratObject,
   assay = "RNA",
   layers = NULL,
+  species = "human",
   perform.cell.cycle.scoring = TRUE,
   perform.MALAT1.test = TRUE,
   ...
 ) {
+  # Input validation
+  species <- tolower(species)
+  if (!species %in% rownames(patterns)) {
+    stop(
+      "Invalid species provided. Please use 'human' or 'mouse'."
+    )
+  }
+
+  if (!is.character(assay) || length(assay) != 1) {
+    stop(
+      "Invalid assay provided. Please provide a single assay name as a character string."
+    )
+  }
+
+  if (!is.null(layers) && (!is.character(layers) || length(layers) < 1)) {
+    stop(
+      "Invalid layers provided. Please provide a character vector of layer names or NULL."
+    )
+  }
+
+  if (
+    !is.logical(perform.cell.cycle.scoring) ||
+      length(perform.cell.cycle.scoring) != 1
+  ) {
+    stop(
+      "Invalid perform.cell.cycle.scoring provided. Please provide a single logical value (TRUE or FALSE)."
+    )
+  }
+
+  if (!is.logical(perform.MALAT1.test) || length(perform.MALAT1.test) != 1) {
+    stop(
+      "Invalid perform.MALAT1.test provided. Please provide a single logical value (TRUE or FALSE)."
+    )
+  }
+
   # Estimation of metrics
   SeuratObject@meta.data$percent.mt <- Seurat::PercentageFeatureSet(
     SeuratObject,
-    pattern = "^MT-"
+    pattern = patterns[species, "mt.pattern"]
   ) # Percentage of counts corresponding to mitochondrial genes.
   SeuratObject@meta.data$percent.ribo <- Seurat::PercentageFeatureSet(
     SeuratObject,
-    "^RP[SL]"
+    pattern = patterns[species, "ribo.pattern"]
   ) # Percentage of counts corresponding to ribosomal genes.
   SeuratObject@meta.data$percent.hb <- Seurat::PercentageFeatureSet(
     SeuratObject,
-    "^HB[^(P)]"
+    pattern = patterns[species, "hb.pattern"]
   ) # Percentage of counts corresponding to hemoglobin.
   SeuratObject@meta.data$percent.ig <- Seurat::PercentageFeatureSet(
     SeuratObject,
-    "^IG"
+    pattern = patterns[species, "ig.pattern"]
   ) # Percentage of counts corresponding to immunoglobulins.
   SeuratObject@meta.data$percent.plat <- Seurat::PercentageFeatureSet(
     SeuratObject,
-    "PECAM1|PF4"
+    pattern = patterns[species, "plat.pattern"]
   ) # Percentage of counts corresponding to genes associated with platelets.
   SeuratObject@meta.data$percent.MALAT1 <- Seurat::PercentageFeatureSet(
     SeuratObject,
-    pattern = "MALAT1"
+    pattern = patterns[species, "MALAT1.pattern"]
   ) # Percentage of counts corresponding to MALAT1.
   SeuratObject@meta.data$percent.S100A9 <- Seurat::PercentageFeatureSet(
     SeuratObject,
-    pattern = "S100A9"
+    pattern = patterns[species, "S100A9.pattern"]
   ) # Percentage of counts corresponding to S100A9.
   SeuratObject@meta.data$percent.S100A8 <- Seurat::PercentageFeatureSet(
     SeuratObject,
-    pattern = "S100A8"
+    pattern = patterns[species, "S100A8.pattern"]
   ) # Percentage of counts corresponding to S100A8.
   SeuratObject@meta.data$percent.FCGR3B <- Seurat::PercentageFeatureSet(
     SeuratObject,
-    pattern = "FCGR3B"
+    pattern = patterns[species, "FCGR3B.pattern"]
   ) # Percentage of counts corresponding to FCGR3B.
   SeuratObject@meta.data$log10_nFeature_RNA <- log10(
     SeuratObject@meta.data$nFeature_RNA
@@ -215,7 +269,7 @@ CalculateQC <- function(
           SeuratObject = SeuratObject,
           assay = assay,
           layers = layers,
-          feature = "MALAT1",
+          feature = patterns[species, "MALAT1.pattern"],
           ...
         )
       }
