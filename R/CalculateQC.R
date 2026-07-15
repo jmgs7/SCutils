@@ -11,7 +11,7 @@
 #' the total number of log-normalized counts and features per cell, as well as cell cycle scoring
 #' using updated S and G2/M phase gene sets.
 #'
-#' #' @details The following metadata columns are added to SeuratObject:
+#' @details The following metadata columns are added to SeuratObject:
 #' \itemize{
 #'   \item percent.mt: percentage of counts matching '^MT-'
 #'   \item percent.ribo: percentage of counts matching '^RP[SL]'
@@ -73,11 +73,8 @@ CalculateQC <- function(
   ...
 ) {
   # Input validation
-  species <- tolower(species)
-  if (!species %in% c("human", "mouse")) {
-    stop(
-      "Invalid species provided. Please use 'human' or 'mouse'."
-    )
+  if (!inherits(SeuratObject, "Seurat")) {
+    stop("'SeuratObject' must be a Seurat object.")
   }
 
   if (!is.character(assay) || length(assay) != 1) {
@@ -89,6 +86,17 @@ CalculateQC <- function(
   if (!is.null(layers) && (!is.character(layers) || length(layers) < 1)) {
     stop(
       "Invalid layers provided. Please provide a character vector of layer names or NULL."
+    )
+  }
+
+  if (!is.character(species) || length(species) != 1) {
+    stop(
+      "species must be a single character string (e.g., 'human' or 'mouse')."
+    )
+    species <- tolower(species)
+  } else if (!species %in% c("human", "mouse")) {
+    stop(
+      "Invalid species provided. Please use 'human' or 'mouse'."
     )
   }
 
