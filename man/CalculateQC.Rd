@@ -59,8 +59,9 @@ values and a complexity ratio.
 If the Seurat object contains log-normalized data layers, the function will also calculate
 the total number of log-normalized counts and features per cell, as well as cell cycle scoring
 using updated S and G2/M phase gene sets.
-
-#' @details The following metadata columns are added to SeuratObject:
+}
+\details{
+The following metadata columns are added to SeuratObject:
 \itemize{
   \item percent.mt: percentage of counts matching '^MT-'
   \item percent.ribo: percentage of counts matching '^RP[SL]'
