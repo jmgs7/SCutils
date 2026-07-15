@@ -409,7 +409,7 @@ FeatureDensityPlot <- function(
       clean = FALSE
     )
 
-    group.values <- sort(as.character(group.data[[group.fetch.var]]))
+    group.values <- as.character(group.data[[group.fetch.var]])
     group.label <- group.by
   } else {
     group.fetch.var <- NULL
@@ -509,7 +509,7 @@ FeatureDensityPlot <- function(
   }
 
   # Cache the encountered group levels once for split plotting.
-  group.levels <- unique(plot.data$.group)
+  group.levels <- sort(unique(plot.data$.group))
   if (has.grouping && length(group.levels) == 0L) {
     stop("No groups available to plot after filtering missing grouping values.")
   }
