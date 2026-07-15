@@ -74,7 +74,7 @@ CalculateQC <- function(
 ) {
   # Input validation
   species <- tolower(species)
-  if (!species %in% rownames(patterns)) {
+  if (!species %in% c("human", "mouse")) {
     stop(
       "Invalid species provided. Please use 'human' or 'mouse'."
     )
