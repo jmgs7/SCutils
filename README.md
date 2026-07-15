@@ -14,7 +14,6 @@ An R package providing single-cell RNA-seq utility functions to complement Seura
 remotes::install_github("jmgs7/SCutils")
 ```
 
-
 ## Functions
 
 ### `BatchOpenH5()`
@@ -47,7 +46,6 @@ BatchOpenH5(
 | `generate.metadata` | `FALSE` | If `TRUE`, returns a named list with `data.list` plus per-cell metadata (`cell.tag`, `sample.procedence`) |
 | `mc.cores` | `length(files)` | Cores used by `mclapply()`; forced to `1` on Windows |
 
-
 ***
 
 ### `CalculateCDR()`
@@ -61,7 +59,6 @@ SeuratObject <- CalculateCDR(SeuratObject)
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
 | `SeuratObject` | — | A Seurat object |
-
 
 ***
 
@@ -84,8 +81,6 @@ Computes common single-cell QC metrics and appends them directly to `SeuratObjec
 - `log10_nCount_RNA`: The log10 of the number of counts per cell, computed from the `nCount_RNA` column.
 - `complexity`: The complexity of the library per cell, computed as `log10(nFeature_RNA) / log10(nCount_RNA)`.
 
-
-
 **Conditionally computed** (requires normalized counts in `data` layer):
 
 - `nCount_logRNA`, `nFeature_logRNA`: log-normalized count and detected feature totals per cell.
@@ -99,6 +94,7 @@ SeuratObject <- CalculateQC(
   SeuratObject,
   assay = "RNA",
   layers = NULL,
+  species = "human" , # Also 'mouse' available
   perform.cell.cycle.scoring = TRUE,
   perform.MALAT1.test = TRUE
 )
@@ -109,10 +105,10 @@ SeuratObject <- CalculateQC(
 | `SeuratObject` | — | Seurat object to annotate |
 | `assay` | `"RNA"` | Assay to read counts from |
 | `layers` | `NULL` | Normalized layer(s) to use; `NULL` uses the default `data` layer; a character vector processes each layer independently |
+| `species` | `"human"` | Species of the dataset, used to select the appropriate gene sets for cell cycle scoring. Human and Mouse currently supported. |
 | `perform.cell.cycle.scoring` | `TRUE` | If `TRUE`, performs cell cycle scoring |
 | `perform.MALAT1.test` | `TRUE` | If `TRUE`, performs MALAT1-based QC thresholding |
 | `...` | | Additional arguments forwarded to the internal `.CalculateFeatureThresholdSeurat()` |
-
 
 ***
 
@@ -400,14 +396,10 @@ Sets common x and y axis limits across a `patchwork` joined ggplot object. Used 
 
 ## Changelog
 
-### 0.8.3
+### 0.8.3 (beta)
 
-- Added `common.scales` and `collect.axes` parameters to `FeatureScatterGradient()` for consistent axis limits and patchwork axis collection across grouped panels.
-- Added `common.scales` and `collect.axes` parameters to `FeatureDensityPlot()`, mirroring the same behaviour as in `FeatureScatterGradient()`.
-- Added `layer.gradient` parameter to `VlnPlotGradient()` for independent assay layer selection of the gradient feature.
-- Standardized input validation across all plotting functions with consistent `stop()` messages.
-- `CalculateQC()`: default values for `perform.cell.cycle.scoring` and `perform.MALAT1.test` changed to `TRUE`; `assay` default corrected to `"RNA"`.
-- Exported `ExtractFeatureTestResults()` for tidy extraction of MALAT1/feature threshold results from `meta.data`.
+- The `FeatureDensityPlot()` and `FeatureScatterGradient()`functions now set a common x and y axes scale by default. You can override this behavior by setting the `common.scales` argument to `FALSE`. This enhancement allows for better comparison of feature distributions across different groups or conditions, as it ensures that the scales are consistent and comparable. They also include a new argument `collect.axes` (default `FALSE`) to draw a unique x and y axis per plot when `split.plot = TRUE`. This provides users with more flexibility in visualizing their data, allowing for clearer interpretation of feature distributions and relationships across different groups or conditions.
+- Added support for mouse genome in `CalculateQC()` function. The function now accepts a `species` argument, which can be set to either `"human"` (default) or `"mouse"`. This allows users to perform quality control calculations on datasets from both human and mouse samples, ensuring that the appropriate gene sets are used for cell cycle scoring and other QC metrics.
 
 ### 0.8.2 (beta)
 
@@ -453,7 +445,6 @@ Sets common x and y axis limits across a `patchwork` joined ggplot object. Used 
 ## License
 
 GPLv3 © José Manuel Gómez Silva
-
 
 ## Contact and contributions
 

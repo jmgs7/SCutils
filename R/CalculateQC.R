@@ -29,8 +29,7 @@
 #' @param layers Default: `NULL`. If normalization has been applied to the SeuratObject, you can provide
 #'   the layers where the data is stored. If NULL, the function will attempt to find all log-normalized data layers
 #'   in the Seurat object. If not found, the function will skip log-normalized QC calculations.
-#' @param species Default: "human". The species of the dataset, used to select the appropriate gene sets for cell cycle scoring. Currently
-#'   supports "human" and "mouse".
+#' @param species Default: "human". The species of the dataset. Currently supports "human" and "mouse".
 #' @param perform.cell.cycle.scoring Default: `TRUE`. If `TRUE`, the function will perform cell cycle scoring
 #'   using the updated S and G2/M phase gene sets. If `FALSE`, cell cycle scoring will be skipped.
 #' @param perform.MALAT1.test Default: `TRUE`. If `TRUE`, the function will apply the MALAT1 thresholding
