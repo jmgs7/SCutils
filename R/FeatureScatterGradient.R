@@ -74,7 +74,10 @@
 #'   `"feature1(_layer1) VS feature2(_layer2)"`.
 #' @param pt.size Numeric scalar. Point size for the scatter plot. Default is
 #'   `0.5`.
-#'
+#' @param common.scales Logical. If `TRUE`, all sub-plots share the same x and y axis limits. If `FALSE`,
+#'  each sub-plot has its own axis limits. Default is `TRUE`.
+#' @param collect.axes Logical scalar. If `TRUE`, collects the axes across all
+#'  sub-plots when `group.by` is non-`NULL`. Default is `FALSE`.
 #' @return
 #' If `group.by` is `NULL`, returns a single `ggplot2` object representing the
 #' scatter of `feature1` vs `feature2` with points colored by `gradient` and a
@@ -172,7 +175,9 @@ FeatureScatterGradient <- function(
   layer2 = NULL,
   plot.title = NULL,
   pt.size = 0.5,
-  layer.gradient = NULL
+  layer.gradient = NULL,
+  common.scales = TRUE,
+  collect.axes = FALSE
 ) {
   # Validate Seurat object: required for FetchData semantics and structure.
   if (!inherits(SeuratObject, "Seurat")) {
@@ -297,6 +302,24 @@ FeatureScatterGradient <- function(
     ) {
       stop("'plot.title' must be NULL or a single non-NA character value.")
     }
+  }
+
+  # Validate common.scales: must be a single logical.
+  if (
+    !is.logical(common.scales) ||
+      length(common.scales) != 1L ||
+      is.na(common.scales)
+  ) {
+    stop("'common.scales' must be a single logical value.")
+  }
+
+  # Validate collect.axes: must be a single logical.
+  if (
+    !is.logical(collect.axes) ||
+      length(collect.axes) != 1L ||
+      is.na(collect.axes)
+  ) {
+    stop("'collect.axes' must be a single logical value.")
   }
 
   # Normalize single-layer inputs so callers can pass the same sentinel values
@@ -681,7 +704,7 @@ FeatureScatterGradient <- function(
         x = axis.x.label,
         y = axis.y.label
       ) +
-      ggplot2::theme_classic(base_size = 9) +
+      ggplot2::theme_bw(base_size = 9) +
       ggplot2::theme(
         plot.title = ggplot2::element_text(
           face = "bold", # Use bold font for group titles.
@@ -749,6 +772,16 @@ FeatureScatterGradient <- function(
         )
       )
     )
+
+  # Set common axis limits across all panels if requested by the user. This ensures that all sub-plots share the same x and y axis limits, which can be useful for visual comparison across groups. If common.scales is FALSE, each sub-plot will have its own axis limits.
+  if (common.scales) {
+    combined <- .SetCommonScales(combined)
+  }
+
+  # If collect.axes is TRUE, collect the axes across all sub-plots.
+  if (collect.axes) {
+    combined <- combined + patchwork::plot_layout(axes = "collect")
+  }
 
   # Return combined grouped scatter plot.
   return(combined)

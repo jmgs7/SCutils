@@ -56,6 +56,10 @@
 #' @param alpha Numeric in `[0, 1]`. Fill alpha for density geometries.
 #' @param pt.size Numeric. If `0` (default), no rug is drawn. If `> 0`, adds a rug
 #'   (`geom_rug()`) with this line width.
+#' @param common.scales Logical. If `TRUE`, all sub-plots share the same x and y axis limits. If `FALSE`,
+#'   each sub-plot has its own axis limits. Default is `TRUE`.
+#' @param collect.axes Logical. If `TRUE`, collects the axes across all sub-plots when
+#'   `common.scales = TRUE`. Default is `FALSE`.
 #'
 #' @return If `length(features) == 1`, returns a `ggplot2`/`patchwork` plot object.
 #'   If `length(features) > 1`, returns a named list of plot objects (one per feature;
@@ -120,7 +124,8 @@
 #'   features = "CD3D",
 #'   group.by = "ident",
 #'   split.plot = TRUE,
-#'   vline = c(0.5, 1.0, 1.5)
+#'   vline = c(0.5, 1.0, 1.5),
+#'   collect.axes = TRUE
 #' )
 #' }
 #'
@@ -142,7 +147,9 @@ FeatureDensityPlot <- function(
   plot.title = NULL,
   nmad = 2,
   alpha = 0.3,
-  pt.size = 0
+  pt.size = 0,
+  common.scales = TRUE,
+  collect.axes = FALSE
 ) {
   # ─────────────────────────────────────────────────────────────────────────────
   # 1) Input validation
@@ -200,6 +207,26 @@ FeatureDensityPlot <- function(
     if (!(length(plot.title) == 1L || length(plot.title) == length(features))) {
       stop("'plot.title' must have length 1 or length(features).")
     }
+  }
+
+  if (!is.character(scale.colors) || length(scale.colors) != 1L) {
+    stop("'scale.colors' must be a single character value.")
+  }
+
+  if (
+    !is.logical(common.scales) ||
+      length(common.scales) != 1L ||
+      is.na(common.scales)
+  ) {
+    stop("'common.scales' must be a single logical value.")
+  }
+
+  if (
+    !is.logical(collect.axes) ||
+      length(collect.axes) != 1L ||
+      is.na(collect.axes)
+  ) {
+    stop("'collect.axes' must be a single logical value.")
   }
 
   # Normalize a single vline entry to one of the internal representations used
@@ -804,13 +831,27 @@ FeatureDensityPlot <- function(
       ceiling(sqrt(length(group.plots)))
     }
 
-    patchwork::wrap_plots(group.plots, ncol = ncol.groups) +
+    # Combine the split panels into one feature-level plot with a shared title.
+    # The title is centered and bolded for better visibility.
+    combined <- patchwork::wrap_plots(group.plots, ncol = ncol.groups) +
       patchwork::plot_annotation(
         title = feature.title,
         theme = ggplot2::theme(
           plot.title = ggplot2::element_text(hjust = 0.5, face = "bold")
         )
       )
+
+    # Apply a shared x and y axis scale if requested in common.scales option.
+    if (common.scales) {
+      combined <- .SetCommonScales(combined)
+    }
+
+    # Apply axes collection if requested in collect.axes option.
+    if (collect.axes) {
+      combined <- combined + patchwork::plot_layout(axes = "collect")
+    }
+
+    return(combined)
   })
 
   # ─────────────────────────────────────────────────────────────────────────────

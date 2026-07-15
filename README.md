@@ -298,21 +298,43 @@ results <- scGSEAmarkers(
 
 ***
 
-## Changelog (0.7.x series)
+## Changelog (0.8.x series)
 
-### 0.7.1
+### v0.8.2-beta
 
-- Hardened `FeatureScatterGradient()` argument validation and single-layer handling, treating `""` and `"null"` as omitted layers and enforcing numeric gradient limits ordering when both bounds are user-specified.
-- Improved grouped `FeatureScatterGradient()` behaviour: NA grouping values are excluded, per-group correlations appear as subtitles, and a single global viridis gradient scale and legend are shared across panels via `patchwork::plot_layout(guides = "collect")`.
-- Updated `FeatureDensityPlot()` to use `group.by = "ident"` by default for direct `FetchData()` compatibility and to clean up output names by using `feature_layer` for assay-backed features and bare feature names for metadata-backed features.
-- Enhanced `VlnPlotGradient()` to support per-feature custom plot titles via `plot.title` while maintaining `feature_layer` naming for assay-backed features when a layer is specified; metadata-backed features retain bare names.
-- Fixed several plotting edge cases: handling NAs and empty strings in all layer options as `NULL`, avoiding errors when using default grouping by identity, and eliminating duplicate legends in grouped gradient plots.
+#### 🚀 New Features
 
+- The `CalculateQC()` function now admits additional arguments to pass to the internal computation of feature threshold by the ComputeFeatureThreshold module (internal, not user-facing). This allows for more flexibility in adjusting the parameters for the computation of the MALAT1 threshold test, enabling users to customize the analysis according to their specific needs.
 
-### 0.7.0 (beta)
+- We have included a Utils module where we will upload utility functions. The first function of this module, `ExtractFeatureTestResults()`, retrieves and summarizes the per-cell results from the MALAT1 test of `CalculateQC()`. This function is designed to facilitate the extraction of feature threshold test results from a Seurat object, providing users with a convenient way to access and analyze these results.
 
-- Roxygenized the package and aligned documentation for the main plotting utilities and QC helpers.
-- Introduced the current gradient-based visualization suite (`FeatureScatterGradient`, `FeatureDensityPlot`, `VlnPlotGradient`, `QCMetricsBoxplot`) with consistent viridis-based palettes and Seurat-compatible semantics.
+- The `FeatureDensityPlot()` now accepts a vector of vlines per group when plotting only one feature to allow individual groups to plot vertical lines for each (split.plot must be `TRUE`). This enhancement allows users to visualize group-specific thresholds or key values on the density plot, providing a clearer understanding of the distribution of feature expression levels in relation to the specified vline values. This is ideal to visualize the MALAT1 threshold test results for each group in a single plot, making it easier to compare and interpret the data across different groups.
+
+#### 🛠️ Bug Fixes
+
+- Improvement of code readability and maintainability by refactoring the `FeatureDensityPlot()` function. This includes better organization of the code, clearer variable names, and enhanced documentation to make it easier for users to understand and utilize the function effectively.
+- Enhanced documentation of the code in several modules.
+
+### v0.8.1
+
+### 🛠️ Bug Fixes
+
+- Unclutters namespace between dplyr and stats.
+
+---
+
+#### v0.8.0
+
+##### 🚀 New Features
+
+- **Improved QC Metrics**: The `CalculateQC()` function now computes log-normalized counts per cell and detected features per cell for the normalized layer, adding them as `nCount_logRNA` and `nFeature_logRNA`.
+- **Cell Cycle Scoring**: The function now includes cell cycle scoring capabilities.
+- **MALAT1-based QC Thresholding**: The function now supports MALAT1-based QC thresholding, adding `MALAT1.threshold` (numeric) and `MALAT1.pass` (boolean) columns to `meta.data`.
+
+##### 🛠️ Bug Fixes
+
+- Fixed issues with layer-related options in various plotting functions.
+- Unclutters namespace between dplyr and stats.
 
 ***
 

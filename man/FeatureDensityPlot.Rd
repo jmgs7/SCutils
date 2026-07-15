@@ -17,7 +17,9 @@ FeatureDensityPlot(
   plot.title = NULL,
   nmad = 2,
   alpha = 0.3,
-  pt.size = 0
+  pt.size = 0,
+  common.scales = TRUE,
+  collect.axes = FALSE
 )
 }
 \arguments{
@@ -71,6 +73,12 @@ or `"both"`. Default is `2`.}
 
 \item{pt.size}{Numeric. If `0` (default), no rug is drawn. If `> 0`, adds a rug
 (`geom_rug()`) with this line width.}
+
+\item{common.scales}{Logical. If `TRUE`, all sub-plots share the same x and y axis limits. If `FALSE`,
+each sub-plot has its own axis limits. Default is `TRUE`.}
+
+\item{collect.axes}{Logical. If `TRUE`, collects the axes across all sub-plots when
+`common.scales = TRUE`. Default is `FALSE`.}
 }
 \value{
 If `length(features) == 1`, returns a `ggplot2`/`patchwork` plot object.
@@ -155,7 +163,8 @@ FeatureDensityPlot(
   features = "CD3D",
   group.by = "ident",
   split.plot = TRUE,
-  vline = c(0.5, 1.0, 1.5)
+  vline = c(0.5, 1.0, 1.5),
+  collect.axes = TRUE
 )
 }
 

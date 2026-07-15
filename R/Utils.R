@@ -194,3 +194,97 @@ ExtractFeatureTestResults <- function(
   # ---------------------------------------------------------------------------
   return(feature.test)
 }
+
+
+#' @title .SetCommonScales
+#'
+#' @description
+#' Compute common x and y axis limits across all subplots in a patchwork object
+#' and reapply those limits so that every panel is displayed on the same scale.
+#' This is useful when comparing multiple ggplot2 panels that were assembled
+#' with patchwork and need a consistent visual frame after plotting.
+#'
+#' @details
+#' The function inspects each subplot inside the patchwork object with
+#' `ggplot2::ggplot_build()` and extracts the computed panel ranges from the
+#' first panel. It then calculates global minimum and maximum values across all
+#' subplots and applies them back to the assembled patchwork using
+#' `ggplot2::scale_x_continuous()` and `ggplot2::scale_y_continuous()`.
+#'
+#' This approach is appropriate for standard single-panel ggplot objects.
+#' If a subplot uses faceting, only the first panel range is used.
+#'
+#' @param plot A patchwork object containing two or more ggplot2 subplots.
+#'
+#' @return A patchwork object with common x and y axes limits applied across all
+#' subplots.
+#'
+#' @section Notes:
+#' \itemize{
+#'   \item The function assumes continuous x and y axes.
+#'   \item For faceted plots, only the first panel is used to extract limits.
+#'   \item Using scale limits will constrain the displayed range; it may not be
+#'   equivalent to a visual zoom.
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' library(ggplot2)
+#' library(patchwork)
+#'
+#' p1 <- ggplot(mtcars, aes(wt, mpg)) + geom_point()
+#' p2 <- ggplot(mtcars, aes(wt, qsec)) + geom_point()
+#' p3 <- ggplot(mtcars, aes(wt, disp)) + geom_point()
+#'
+#' pw <- wrap_plots(p1, p2, p3)
+#' .SetCommonScales(pw)
+#' }
+#'
+#' @importFrom ggplot2 ggplot_build scale_x_continuous scale_y_continuous
+#' @import patchwork
+#'
+#' @noRd
+
+.SetCommonScales <- function(plot, collect.axes = FALSE) {
+  # 1. Map over all sub-plots inside the patchwork structure
+  all.limits.list <- lapply(seq_along(plot), function(plot.index) {
+    # Build the individual sub-plot
+    built <- ggplot2::ggplot_build(plot[[plot.index]])
+
+    # Grab calculated panel ranges
+    # (Handles standard plots. If faceting is used, [[1]] gets the first panel)
+    x.range <- built$layout$panel_params[[1]]$x.range
+    y.range <- built$layout$panel_params[[1]]$y.range
+
+    # Return structured as a single row data frame
+    data.frame(
+      plot_index = plot.index,
+      x_min = x.range[1],
+      x_max = x.range[2],
+      y_min = y.range[1],
+      y_max = y.range[2]
+    )
+  })
+
+  # 2. Combine rows into one comprehensive table
+  plot.limits <- do.call(rbind, all.limits.list)
+
+  # 3. Find absolute X and Y boundaries across the entire patchwork grid
+  global.x.min <- min(plot.limits$x_min)
+  global.x.max <- max(plot.limits$x_max)
+
+  global.y.min <- min(plot.limits$y_min)
+  global.y.max <- max(plot.limits$y_max)
+
+  # 4. Redraw the plot with the new limits.
+  # Supress the "already present scale" warning.
+  plot <- (plot) &
+    suppressWarnings(ggplot2::scale_x_continuous(
+      limits = c(global.x.min, global.x.max)
+    )) &
+    suppressWarnings(ggplot2::scale_y_continuous(
+      limits = c(global.y.min, global.y.max)
+    ))
+
+  return(plot)
+}

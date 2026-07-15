@@ -1,7 +1,7 @@
 Package: SCutils
 Type: Package
 Title: Single-Cell RNA-seq Utility Functions
-Version: 0.8.2
+Version: 0.8.3
 Authors@R: person("José Manuel", "Gómez Silva", email = "30865599+jmgs7@users.noreply.github.com", role = c("aut", "cre"))
 Description: A collection of utility functions for single-cell RNA-seq analysis,
     including quality control metrics, visualization tools with gradient color
@@ -12,6 +12,7 @@ Encoding: UTF-8
 LazyData: true
 Imports:
     Seurat,
+    SeuratObject,
     ggplot2,
     dplyr,
     patchwork,
@@ -20,7 +21,6 @@ Imports:
     tibble,
     scales,
     BPCells,
-    Azimuth,
     stats
 Suggests:
     testthat (>= 3.0.0)

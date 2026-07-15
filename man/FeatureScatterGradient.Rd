@@ -18,7 +18,9 @@ FeatureScatterGradient(
   layer2 = NULL,
   plot.title = NULL,
   pt.size = 0.5,
-  layer.gradient = NULL
+  layer.gradient = NULL,
+  common.scales = TRUE,
+  collect.axes = FALSE
 )
 }
 \arguments{
@@ -79,6 +81,12 @@ provided; otherwise, the default main title is the concatenation
 \item{layer.gradient}{Character scalar, `NA` or `NULL`. Assay layer from which
 `gradient` should be obtained. Semantics mirror `layer1`. Metadata-backed
 features ignore `layer.gradient`.}
+
+\item{common.scales}{Logical. If `TRUE`, all sub-plots share the same x and y axis limits. If `FALSE`,
+each sub-plot has its own axis limits. Default is `TRUE`.}
+
+\item{collect.axes}{Logical scalar. If `TRUE`, collects the axes across all
+sub-plots when `group.by` is non-`NULL`. Default is `FALSE`.}
 }
 \value{
 If `group.by` is `NULL`, returns a single `ggplot2` object representing the
