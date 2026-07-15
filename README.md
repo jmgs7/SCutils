@@ -4,7 +4,7 @@ An R package providing single-cell RNA-seq utility functions to complement Seura
 
 ## Status and version
 
-- Current package version: **0.7.1**.
+- Current package version: **0.8.3**
 - Status: **beta**; interfaces may still evolve as additional single-cell use cases are hardened.
 
 
@@ -18,252 +18,298 @@ remotes::install_github("jmgs7/SCutils")
 
 ## Functions
 
-### `BatchOpenH5(files, relative, BP.data.dir, platform, use.names, ensembl.to.symbol, species, generate.metadata, mc.cores)`
+### `BatchOpenH5()`
 
 Batch-opens `.h5` single-cell matrices, writes/loads BPCells matrix directories (`*_BP`), supports both 10X and AnnData HDF5 inputs, and can optionally convert ENSEMBL IDs to gene symbols; it can also generate per-cell sample provenance metadata. Processing uses `parallel::mclapply()` (on Windows, cores are forced to 1).
 
 ```r
 BatchOpenH5(
-  files = c("/data/sample1.h5", "/data/sample2.h5"),
+  files,
   relative = TRUE,
-  BP.data.dir = "/data/BP",
+  BP.data.dir = NULL,
   platform = "10X",
   use.names = TRUE,
   ensembl.to.symbol = FALSE,
   species = "human",
-  generate.metadata = TRUE,
-  mc.cores = 4
+  generate.metadata = FALSE,
+  mc.cores = length(files)
 )
 ```
 
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
 | `files` | — | Character vector of input `.h5` file paths |
-| `relative` | `TRUE` | Store matrix directories as relative paths in each matrix object (`./<basename(BP.data.dir)>/<matrix_dir>`) |
-| `BP.data.dir` | `NULL` | Output directory for `*_BP` folders; defaults to `dirname(files[[^1]])` |
+| `relative` | `TRUE` | Store matrix directory paths as relative paths inside each matrix object |
+| `BP.data.dir` | `NULL` | Output directory for `*_BP` folders; defaults to `dirname(files[[1]])` |
 | `platform` | `"10X"` | Input format: `"10X"` or `"anndata"` |
 | `use.names` | `TRUE` | For 10X only: replace feature IDs with `/matrix/features/name` |
-| `ensembl.to.symbol` | `FALSE` | Convert ENSEMBL IDs to symbols with `ConvertEnsembleToSymbol2()` (applied only when `use.names = FALSE`) |
-| `species` | `"human"` | Species passed to symbol conversion |
-| `generate.metadata` | `FALSE` | If `TRUE`, returns `data.list` plus metadata (`cell.tag`, `sample.procedence`) |
-| `mc.cores` | `length(files)` | Cores used by `mclapply()` |
+| `ensembl.to.symbol` | `FALSE` | Convert ENSEMBL IDs to symbols via `ConvertEnsembleToSymbol2()` (applied only when `use.names = FALSE`) |
+| `species` | `"human"` | Species passed to symbol conversion: `"human"` or `"mouse"` |
+| `generate.metadata` | `FALSE` | If `TRUE`, returns a named list with `data.list` plus per-cell metadata (`cell.tag`, `sample.procedence`) |
+| `mc.cores` | `length(files)` | Cores used by `mclapply()`; forced to `1` on Windows |
 
 
 ***
 
-### `CalculateCDR(SeuratObject)`
+### `CalculateCDR()`
 
-Calculates **Cellular Detection Rate** (fraction of detected features per cell), scales it, and adds `CDR` to `SeuratObject@meta.data`.
+Calculates the **Cellular Detection Rate** (fraction of detected features per cell), z-scales it, and adds a `CDR` column to `SeuratObject@meta.data`. Handles both Seurat v3 (`@assays$RNA@counts`) and v5/split-layer (`@assays$RNA@layers$counts`) object formats.
 
 ```r
 SeuratObject <- CalculateCDR(SeuratObject)
 ```
 
+| Parameter | Default | Description |
+| :-- | :-- | :-- |
+| `SeuratObject` | — | A Seurat object |
+
 
 ***
 
-### `CalculateQC(SeuratObject)`
+### `CalculateQC()`
 
-Computes common single-cell QC metrics and appends them to `SeuratObject@meta.data`.
+Computes common single-cell QC metrics and appends them directly to `SeuratObject@meta.data`.
 
-Added columns include:
+**Always-computed columns** (from raw counts):
 
 - `percent.mt`, `percent.ribo`, `percent.hb`, `percent.ig`, `percent.plat`
 - `percent.MALAT1`, `percent.S100A9`, `percent.S100A8`, `percent.FCGR3B`
 - `log10_nFeature_RNA`, `log10_nCount_RNA`, `complexity`
 
-When a normalized counts data layer is present, it also computesL
+**Conditionally computed** (requires normalized counts in `data` layer):
 
-- log-normalized counts per cell and detected features per cell for the normalized layer, and adds them as `nCount_logRNA` and `nFeature_logRNA`.
-- Cell cycle scoring.
-- MALAT1-based QC thresholding, adding `MALAT1.threshold` (numeric) and `MALAT1.pass` (boolean) columns to `meta.data`. For more info about his QC metric, visit the [feature_threshold](https://github.com/jmgs7/feature_threshold) repository.
+- `nCount_logRNA`, `nFeature_logRNA` — log-normalized count and detected feature totals per cell.
+- Cell cycle scoring (S and G2M scores, `Phase`) — when `perform.cell.cycle.scoring = TRUE`.
+- MALAT1 thresholding — when `perform.MALAT1.test = TRUE`; adds `MALAT1.threshold` (numeric) and `MALAT1.pass` (logical) columns. See the [feature_threshold](https://github.com/jmgs7/feature_threshold) repository for details.
 
-The normalized QC metrics are computed from the normalized counts in the default assay and layer, or from the user-specified assay and layer if provided. The function also supports split Seurat objects, computing QC metrics per individual layer if the normalized counts are stored in the standard `data.layer` layers of the assay or if the user specifies the concrete data layers.
+The function supports split Seurat v5 objects: if normalized counts are stored in standard `data.*` layers or a concrete layer vector is passed via `layers`, metrics are computed per-layer.
 
 ```r
-SeuratObject <- CalculateQC(SeuratObject)
+SeuratObject <- CalculateQC(
+  SeuratObject,
+  assay = "RNA",
+  layers = NULL,
+  perform.cell.cycle.scoring = TRUE,
+  perform.MALAT1.test = TRUE
+)
 ```
 
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
-| `SeuratObject` | — | Seurat object to annotate with QC metadata |
-| `assay` | `NULL` | Assay to use for QC metrics; if `NULL`, uses the default assay |
-| `layers` | `NULL` | Data layer(s) to use for QC metrics;
-  if `NULL`, uses the default layer (`data`); if a vector of layer names, computes QC metrics for each layer and appends them to `meta.data` with suffixes `_layername` |
-| `perform.cell.cycle.scoring` | `FALSE` | If `TRUE`, performs cell cycle scoring and adds results to `meta.data` |
-| `perform.MALAT1.test` | `FALSE` | If `TRUE`, performs MALAT1-based QC thresholding and adds results to `meta.data` |  
+| `SeuratObject` | — | Seurat object to annotate |
+| `assay` | `"RNA"` | Assay to read counts from |
+| `layers` | `NULL` | Normalized layer(s) to use; `NULL` uses the default `data` layer; a character vector processes each layer independently |
+| `perform.cell.cycle.scoring` | `TRUE` | If `TRUE`, performs cell cycle scoring |
+| `perform.MALAT1.test` | `TRUE` | If `TRUE`, performs MALAT1-based QC thresholding |
+| `...` | | Additional arguments forwarded to the internal `.CalculateFeatureThresholdSeurat()` |
 
 
 ***
 
-### `CellsHistoGradient(SeuratObject, group.by, scale.colors, breaks)`
+### `CellsHistoGradient()`
 
-Creates a bar plot with number of cells per group, filled by a viridis gradient.
+Creates a bar plot showing the number of cells per group, with bars filled by a viridis gradient based on cell count.
 
 ```r
 CellsHistoGradient(
   SeuratObject,
-  group.by = "seurat_clusters",
-  scale.colors = "plasma"
+  group.by = NULL,
+  scale.colors = "viridis",
+  breaks = scales::extended_breaks()
 )
 ```
 
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
-| `group.by` | `NULL` | Metadata grouping column; if `NULL`, uses active identity |
-| `scale.colors` | `"viridis"` | Viridis palette option |
-| `breaks` | `scales::extended_breaks()` | Y-axis breaks |
+| `SeuratObject` | — | A Seurat object |
+| `group.by` | `NULL` | Metadata column for grouping; if `NULL`, uses active identity |
+| `scale.colors` | `"viridis"` | Viridis palette option: `"magma"` (`"A"`), `"inferno"` (`"B"`), `"plasma"` (`"C"`), `"viridis"` (`"D"`), `"cividis"` (`"E"`), `"rocket"` (`"F"`), `"mako"` (`"G"`), `"turbo"` (`"H"`) |
+| `breaks` | `scales::extended_breaks()` | Y-axis break specification |
 
 
 ***
 
-### `FeatureScatterGradient(SeuratObject, feature1, feature2, gradient, group.by, scale.colors, lower.limit, upper.limit, corr.method, layer1, layer2, layer.gradient, plot.title, pt.size)`
+### `FeatureScatterGradient()`
 
-Extends feature scatter plots by coloring points with a continuous gradient defined by a third feature while preserving Seurat-like `FeatureScatter` behaviour. It supports optional grouping into per-group panels with independent per-group correlation display, configurable correlation method (`pearson`, `spearman`, `kendall`), and per-feature layer selection for all three axes (`layer1`, `layer2`, `layer.gradient`). In grouped mode, the gradient color scale is computed globally across all panels, with explicit handling of open or partially specified limits, and a single shared legend is collected by patchwork.
+Extends `Seurat::FeatureScatter()` by coloring points with a continuous viridis gradient defined by a third feature. Supports optional per-group panels with independent per-group correlation subtitles, configurable correlation methods, per-feature layer selection for all three axes, and a single shared legend across grouped panels. The gradient scale is computed globally across all panels.
 
 ```r
 FeatureScatterGradient(
   SeuratObject,
-  feature1 = "nCount_RNA",
-  feature2 = "nFeature_RNA",
-  gradient = "percent.mt",
-  upper.limit = 100,
-  scale.colors = "viridis"
+  feature1,
+  feature2,
+  gradient,
+  group.by = "ident",
+  scale.colors = "viridis",
+  lower.limit = NULL,
+  upper.limit = NULL,
+  corr.method = "pearson",
+  layer1 = NULL,
+  layer2 = NULL,
+  layer.gradient = NULL,
+  plot.title = NULL,
+  pt.size = 0.5,
+  common.scales = TRUE,
+  collect.axes = FALSE
 )
 ```
 
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
-| `feature1` | — | X-axis feature (metadata, assay feature, reduction variable) |
-| `feature2` | — | Y-axis feature with same resolution rules as `feature1` |
-| `gradient` | — | Feature used for color scale, resolved via `FetchData()` |
-| `group.by` | `"ident"` | Metadata column or `"ident"` for per-group panels; `NULL` for a single plot |
+| `feature1` | — | X-axis feature (metadata column, assay feature, or reduction variable) |
+| `feature2` | — | Y-axis feature; same resolution rules as `feature1` |
+| `gradient` | — | Feature used for the continuous color scale, resolved via `FetchData()` |
+| `group.by` | `"ident"` | Metadata column for per-group panels; `NULL` for a single combined plot |
 | `scale.colors` | `"viridis"` | Viridis palette option or letter code |
-| `lower.limit` | `NULL` | Lower gradient clamp; `NULL` infers from data when not jointly specified |
-| `upper.limit` | `NULL` | Upper gradient clamp; `NULL` infers from data when not jointly specified |
+| `lower.limit` | `NULL` | Lower gradient clamp; `NULL` infers from data |
+| `upper.limit` | `NULL` | Upper gradient clamp; `NULL` infers from data |
 | `corr.method` | `"pearson"` | Correlation method: `"pearson"`, `"spearman"`, or `"kendall"` |
-| `layer1` | `NULL` | Assay layer for `feature1`; `NULL` uses Seurat default; sentinel values `""` and `"null"` are treated as `NULL` |
+| `layer1` | `NULL` | Assay layer for `feature1`; `NULL` uses Seurat default; `""` and `"null"` treated as `NULL` |
 | `layer2` | `NULL` | Assay layer for `feature2`; semantics mirror `layer1` |
-| `layer.gradient` | `NULL` | Assay layer for `gradient`; metadata-backed features ignore this at data access |
-| `plot.title` | `NULL` | Custom main title for grouped plots; ungrouped plots use correlation string as title |
+| `layer.gradient` | `NULL` | Assay layer for `gradient`; metadata-backed features ignore this |
+| `plot.title` | `NULL` | Custom main title; ungrouped plots default to the correlation string |
 | `pt.size` | `0.5` | Point size |
+| `common.scales` | `TRUE` | If `TRUE`, all sub-plots share the same x and y axis limits |
+| `collect.axes` | `FALSE` | If `TRUE`, collects axes across sub-plots using patchwork |
 
 
 ***
 
-### `VlnPlotGradient(SeuratObject, features, gradient, group.by, scale.colors, lower.limit, upper.limit, pt.size, ncol, layer, plot.title)`
+### `VlnPlotGradient()`
 
-Creates violin plots colored by a per-identity aggregated gradient (`nCells` or mean of selected feature), ordered by gradient value. It supports per-feature assay layer selection via `layer` and optional per-feature custom titles via `plot.title`; when `layer` is provided for assay-backed features, the default panel title is `feature_layer`, whereas metadata-backed features always use bare names.
+Creates violin plots colored by a per-identity aggregated gradient (`"nCells"` or the mean of a chosen feature), ordered by gradient value. Supports per-feature assay layer selection via `layer` and optional per-feature custom titles via `plot.title`. When `layer` is specified for assay-backed features, the default panel title is `feature_layer`; metadata-backed features always use bare names.
 
 ```r
 VlnPlotGradient(
   SeuratObject,
-  features = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
+  features,
   gradient = "nCells",
-  group.by = "seurat_clusters",
-  scale.colors = "mako"
+  group.by = "ident",
+  scale.colors = "viridis",
+  lower.limit = 0,
+  upper.limit = NULL,
+  pt.size = 0,
+  ncol = NULL,
+  layer = NULL,
+  layer.gradient = NULL,
+  plot.title = NULL
 )
 ```
 
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
-| `features` | — | Features (genes/metadata) to plot |
-| `gradient` | — | `"nCells"` or feature used to color violins |
-| `group.by` | `"ident"` | Metadata grouping column; if `NULL`, active identity |
+| `SeuratObject` | — | A Seurat object |
+| `features` | — | Character vector of features (genes or metadata columns) to plot |
+| `gradient` | `"nCells"` | `"nCells"` or a feature name whose per-group mean colors the violins |
+| `group.by` | `"ident"` | Metadata grouping column; `NULL` uses active identity |
 | `scale.colors` | `"viridis"` | Viridis palette option |
 | `lower.limit` | `0` | Lower gradient clamp |
 | `upper.limit` | `NULL` | Upper gradient clamp |
-| `pt.size` | `0` | Size of jittered points on violins (`0` hides points) |
-| `ncol` | `NULL` | Number of columns in combined plot |
-| `layer` | `NULL` | Assay layer(s): scalar (all features) or vector (per-feature) |
-| `layer.gradient` | `NULL` | Assay layer for `gradient`; metadata-backed features ignore this at data access |
-| `plot.title` | `NULL` | Custom title(s): `NULL`, one string, or one per feature |
+| `pt.size` | `0` | Size of jittered points overlaid on violins; `0` hides points |
+| `ncol` | `NULL` | Number of columns in the combined plot |
+| `layer` | `NULL` | Assay layer(s): scalar applies to all features; vector of length equal to `features` applies per-feature; metadata-backed features ignore this |
+| `layer.gradient` | `NULL` | Assay layer for the `gradient` feature; metadata-backed features ignore this |
+| `plot.title` | `NULL` | Custom title(s): `NULL`, one string for all, or one string per feature |
 
 
 ***
 
-### `FeatureDensityPlot(SeuratObject, features, group.by, split.plot, scale.colors, ncol, vline, layer, plot.median, plot.title, nmad, alpha, pt.size)`
+### `FeatureDensityPlot()`
 
-Creates density plots for one or more features directly from a Seurat object via `Seurat::FetchData()`, supporting metadata columns, assay features from any layer, and dimensional reduction variables. It supports grouped overlays or split-by-group panels, dashed red reference lines (`vline`), independent median overlays (`plot.median`, black), custom titles, and per-feature layer selection via `layer`, with grouping resolved from `group.by = "ident"` by default for direct compatibility with `FetchData()`. When multiple features are requested, the function returns a named list of plots (one plot per feature); names use `feature_layer` for assay-backed features and bare `feature` for metadata-backed features, with suffixes like `_NULL` and `_NA` stripped.
+Creates kernel-density plots for one or more features extracted from a Seurat object via `FetchData()`, supporting metadata columns, assay features from any layer, and reduction variables. Features grouped by `group.by` can be shown as overlaid densities or split into per-group panels. Supports dashed red reference lines (`vline`), independent black median lines (`plot.median`), custom titles, and per-feature layer selection. When multiple features are requested, returns a named list of plots; names follow `feature_layer` for assay-backed features and bare `feature` for metadata-backed features (suffixes `_NULL` and `_NA` are stripped).
 
 ```r
 FeatureDensityPlot(
   SeuratObject,
-  features = c("percent.mt", "nCount_RNA", "nFeature_RNA"),
-  group.by = "batch",
+  features,
+  group.by = "ident",
   split.plot = TRUE,
   scale.colors = "viridis",
-  vline = "upper",
+  ncol = NULL,
+  vline = NULL,
+  layer = NULL,
   plot.median = TRUE,
-  plot.title = c("Mitochondrial %", "UMI Counts", "Detected Features"),
-  nmad = 2.5,
-  alpha = 0.3
+  plot.title = NULL,
+  nmad = 2,
+  alpha = 0.3,
+  pt.size = 0,
+  common.scales = TRUE,
+  collect.axes = FALSE
 )
 ```
 
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
-| `features` | — | Metadata columns, assay features, or reduction variables to plot |
+| `SeuratObject` | — | A Seurat object |
+| `features` | — | Character vector of metadata columns, assay features, or reduction variables |
 | `group.by` | `"ident"` | Grouping variable: metadata column, `"ident"` (active identity), or `NULL` for no grouping |
-| `split.plot` | `TRUE` | If `TRUE`, one panel per group level; if `FALSE`, overlay groups in one panel per feature |
-| `scale.colors` | `"viridis"` | Viridis palette option for grouped color mapping |
+| `split.plot` | `TRUE` | If `TRUE`, one panel per group level; if `FALSE`, overlay all groups in one panel per feature |
+| `scale.colors` | `"viridis"` | Viridis palette option for group color mapping |
 | `ncol` | `NULL` | Number of columns for split panels within each feature plot |
-| `vline` | `NULL` | Reference line mode: `NULL`, `"mean"`, `"median"`, `"upper"`, `"lower"`, `"both"`, numeric, or per-feature character vector |
-| `layer` | `NULL` | Assay layer(s): scalar (all features) or vector (per-feature); metadata features ignore layers |
-| `plot.median` | `TRUE` | Draw independent median line(s) in black |
-| `plot.title` | `NULL` | Custom title(s): `NULL`, one title for all features, or one title per feature |
+| `vline` | `NULL` | Reference line: `NULL`, `"mean"`, `"median"`, `"upper"` (median + `nmad` MADs), `"lower"` (median − `nmad` MADs), `"both"`, a numeric value, or a per-feature/per-group character/numeric vector |
+| `layer` | `NULL` | Assay layer(s): scalar (all features) or vector (per-feature); metadata features ignore this |
+| `plot.median` | `TRUE` | If `TRUE`, draws an independent black dashed median line for each group |
+| `plot.title` | `NULL` | Custom title(s): `NULL` uses feature names, one string for all, or one per feature |
 | `nmad` | `2` | Number of MADs used when `vline` is `"upper"`, `"lower"`, or `"both"` |
-| `alpha` | `0.3` | Density fill transparency |
-| `pt.size` | `0` | Rug line width (`0` disables rugs) |
+| `alpha` | `0.3` | Fill transparency for density geometries |
+| `pt.size` | `0` | Rug line width; `0` disables the rug |
+| `common.scales` | `TRUE` | If `TRUE`, all sub-plots share the same x and y axis limits |
+| `collect.axes` | `FALSE` | If `TRUE`, collects axes across sub-plots using patchwork |
 
 
 ***
 
-### `QCMetricsBoxplot(SeuratObject, entity_type, entity_name, qc_metrics, gradient_col, scale.colors, lower.limit, upper.limit, pt.size, pt.alpha, fill_color, outlier.size, ncol, gradient_legend)`
+### `QCMetricsBoxplot()`
 
-Creates QC boxplots (default: `nFeature_RNA`, `nCount_RNA`, `percent.mt`) grouped by an entity column, with outliers overlaid as gradient-colored jitter points.
+Creates boxplots to visualize the distribution of QC metrics (default: `nFeature_RNA`, `nCount_RNA`, `percent.mt`) grouped by an entity metadata column. Individual cells are overlaid as jitter points, optionally colored by a gradient feature. Multiple metrics are combined into a single patchwork figure.
 
 ```r
 QCMetricsBoxplot(
   SeuratObject,
-  entity_type = "orig.ident",
-  entity_name = "Sample_1",
+  entity_type,
+  entity_name = NULL,
   qc_metrics = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
   gradient_col = NULL,
-  scale.colors = "plasma",
-  pt.size = 1.5,
-  pt.alpha = 0.7,
-  ncol = 3
+  scale.colors = "viridis",
+  lower.limit = 0,
+  upper.limit = NULL,
+  pt.size = 1,
+  pt.alpha = 0.6,
+  fill_color = "lightblue",
+  outlier.size = 1,
+  ncol = NULL,
+  gradient_legend = FALSE
 )
 ```
 
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
-| `entity_type` | — | Metadata column to group by |
-| `entity_name` | `NULL` | Optional value in `entity_type` to filter one entity |
+| `SeuratObject` | — | A Seurat object |
+| `entity_type` | — | Metadata column name used to group cells (e.g. `"orig.ident"`) |
+| `entity_name` | `NULL` | If specified, filters the plot to one value of `entity_type` |
 | `qc_metrics` | `c("nFeature_RNA", "nCount_RNA", "percent.mt")` | QC metadata columns to plot |
-| `gradient_col` | `NULL` | Feature used for point color; if `NULL`, uses current metric |
+| `gradient_col` | `NULL` | Metadata column or feature used to color jitter points; if `NULL`, the current metric is used |
 | `scale.colors` | `"viridis"` | Viridis palette option |
-| `lower.limit` | `0` | Lower gradient clamp |
-| `upper.limit` | `NULL` | Upper gradient clamp |
-| `pt.size` | `1` | Outlier point size |
-| `pt.alpha` | `0.6` | Outlier point alpha |
-| `fill_color` | `"lightblue"` | Box fill color |
-| `outlier.size` | `1` | Boxplot outlier size setting |
-| `ncol` | `NULL` | Number of columns in combined plot |
-| `gradient_legend` | `FALSE` | Toggle legend positioning behavior |
+| `lower.limit` | `0` | Lower gradient scale clamp |
+| `upper.limit` | `NULL` | Upper gradient scale clamp |
+| `pt.size` | `1` | Size of individual cell points |
+| `pt.alpha` | `0.6` | Transparency of individual cell points |
+| `fill_color` | `"lightblue"` | Fill color of the boxplot body |
+| `outlier.size` | `1` | Size of boxplot outlier points |
+| `ncol` | `NULL` | Number of columns in the combined plot |
+| `gradient_legend` | `FALSE` | Whether to show the gradient legend |
 
 
 ***
 
-### `scGSEAmarkers(cluster_markers, reference_markers, padj.threshold, only.pos, workers)`
+### `scGSEAmarkers()`
 
-Runs **fgsea** per cluster using `FindAllMarkers()` output and returns enriched pathways for each cluster.
+Runs **fgsea** per cluster using the output of `Seurat::FindAllMarkers()` and returns a list of enriched pathways for each cluster. Genes are ranked by `avg_log2FC`; only genes passing the `padj.threshold` are included in the ranked list.
 
 ```r
 results <- scGSEAmarkers(
-  cluster_markers = markers_df,
-  reference_markers = msigdb_c8,
+  cluster_markers,
+  reference_markers,
   padj.threshold = 1e-6,
   only.pos = TRUE,
   workers = 4
@@ -272,9 +318,75 @@ results <- scGSEAmarkers(
 
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
-| `padj.threshold` | `1e-6` | Adjusted p-value cutoff |
-| `only.pos` | `TRUE` | Keep only positive NES pathways |
-| `workers` | `4` | Cores for parallel fgsea |
+| `cluster_markers` | — | `data.frame` from `FindAllMarkers()` containing `cluster`, `gene`, `avg_log2FC`, and `p_val_adj` columns |
+| `reference_markers` | — | GSEA gene-set database in `fgsea`-compatible list format |
+| `padj.threshold` | `1e-6` | Adjusted p-value cutoff for marker inclusion |
+| `only.pos` | `TRUE` | If `TRUE`, returns only positively enriched pathways (NES > 0) |
+| `workers` | `4` | Number of cores for parallel fgsea computation |
+
+
+***
+
+### `ExtractFeatureTestResults()`
+
+Extracts the per-cell results of `.CalculateFeatureThresholdSeurat()` for a given feature from a Seurat object's metadata and returns a tidy `data.frame` with one row per unique batch level, including the computed threshold and pass/fail statistics.
+
+```r
+ExtractFeatureTestResults(
+  SeuratObject,
+  batch.col,
+  feature = "MALAT1"
+)
+```
+
+| Parameter | Default | Description |
+| :-- | :-- | :-- |
+| `SeuratObject` | — | Seurat object containing `<feature>.threshold` and `<feature>.pass` columns in `meta.data` |
+| `batch.col` | — | Metadata column name identifying the batch variable |
+| `feature` | `"MALAT1"` | Feature name whose threshold results to extract |
+
+
+***
+
+## Internal functions
+
+The following functions are internal helpers not exported from the namespace. They are documented here for reference.
+
+### `.ComputeFeatureThreshold()`
+
+Computes an expression threshold for a single feature from a normalized counts vector using kernel density estimation and smoothing splines. The threshold corresponds to the left quadratic intercept of the density curve, with fallback to a conservative default value.
+
+| Parameter | Default | Description |
+| :-- | :-- | :-- |
+| `counts.vector` | — | Numeric vector of normalized feature expression values |
+| `bw.bandwidth` | `0.01` | Bandwidth passed to `stats::density()` |
+| `chosen.min` | `2` | Minimum feature value above which the threshold is searched |
+| `smooth.spar` | `1` | Smoothing parameter passed to `stats::smooth.spline()` |
+| `abs.min` | `1` | Absolute minimum allowed threshold value |
+| `rough.max` | `6` | Rough expected position of the density peak |
+| `conservative.threshold` | `2` | Fallback threshold when automatic detection fails |
+
+### `.CalculateFeatureThresholdSeurat()`
+
+Applies `.ComputeFeatureThreshold()` across all layers of a Seurat assay and stores per-cell results as `<feature>.threshold` (numeric) and `<feature>.pass` (logical) in `meta.data`.
+
+| Parameter | Default | Description |
+| :-- | :-- | :-- |
+| `SeuratObject` | — | A Seurat object with normalized counts |
+| `assay` | `"RNA"` | Assay to use |
+| `layers` | `NULL` | Layer(s) to process; `NULL` processes all available `data.*` layers |
+| `feature` | `"MALAT1"` | Feature name to threshold |
+| `...` | | Additional arguments forwarded to `.ComputeFeatureThreshold()` |
+
+### `ConvertEnsembleToSymbol2()`
+
+Converts ENSEMBL gene IDs to gene symbols for a raw count matrix using `biomaRt`. Returns the filtered matrix with symbol rownames. Requires `biomaRt` and `dplyr`; not exported.
+
+| Parameter | Default | Description |
+| :-- | :-- | :-- |
+| `mat` | — | Matrix with ENSEMBL IDs as rownames |
+| `mirror` | `NULL` | Ensembl BioMart mirror to use |
+| `species` | `c("human", "mouse")` | Species for symbol lookup |
 
 
 ***
@@ -284,6 +396,7 @@ results <- scGSEAmarkers(
 | Package | Source |
 | :-- | :-- |
 | Seurat | CRAN / Bioconductor |
+| SeuratObject | CRAN / Bioconductor |
 | ggplot2 | CRAN |
 | dplyr | CRAN |
 | patchwork | CRAN |
@@ -291,50 +404,55 @@ results <- scGSEAmarkers(
 | BiocParallel | Bioconductor |
 | tibble | CRAN |
 | scales | CRAN |
-| BPCells | CRAN / GitHub |
-| Azimuth | CRAN / GitHub |
-| parallel | base R |
+| BPCells | GitHub (`bnprks/BPCells`) |
+| stats | base R |
 
 
 ***
 
-## Changelog (0.8.x series)
+## Changelog
 
-### v0.8.2-beta
+### 0.8.3
 
-#### 🚀 New Features
+- Added `common.scales` and `collect.axes` parameters to `FeatureScatterGradient()` for consistent axis limits and patchwork axis collection across grouped panels.
+- Added `common.scales` and `collect.axes` parameters to `FeatureDensityPlot()`, mirroring the same behaviour as in `FeatureScatterGradient()`.
+- Added `layer.gradient` parameter to `VlnPlotGradient()` for independent assay layer selection of the gradient feature.
+- Standardized input validation across all plotting functions with consistent `stop()` messages.
+- `CalculateQC()`: default values for `perform.cell.cycle.scoring` and `perform.MALAT1.test` changed to `TRUE`; `assay` default corrected to `"RNA"`.
+- Exported `ExtractFeatureTestResults()` for tidy extraction of MALAT1/feature threshold results from `meta.data`.
 
-- The `CalculateQC()` function now admits additional arguments to pass to the internal computation of feature threshold by the ComputeFeatureThreshold module (internal, not user-facing). This allows for more flexibility in adjusting the parameters for the computation of the MALAT1 threshold test, enabling users to customize the analysis according to their specific needs.
+### 0.8.2 (beta)
 
-- We have included a Utils module where we will upload utility functions. The first function of this module, `ExtractFeatureTestResults()`, retrieves and summarizes the per-cell results from the MALAT1 test of `CalculateQC()`. This function is designed to facilitate the extraction of feature threshold test results from a Seurat object, providing users with a convenient way to access and analyze these results.
+- Introduced `QCMetricsBoxplot()` for grouped QC boxplots with gradient-colored jitter overlays.
+- Added `...` forwarding in `CalculateQC()` to pass custom arguments to the internal `.CalculateFeatureThresholdSeurat()`.
+- Added `ExtractFeatureTestResults()` (Utils module) to retrieve and summarize per-cell MALAT1 threshold test results.
+- Enhanced `FeatureDensityPlot()` to accept a vector of `vline` values per group when plotting a single feature with `split.plot = TRUE`.
+- Refactored `.ComputeFeatureThreshold()` and `.CalculateFeatureThresholdSeurat()` as documented internal helpers.
 
-- The `FeatureDensityPlot()` now accepts a vector of vlines per group when plotting only one feature to allow individual groups to plot vertical lines for each (split.plot must be `TRUE`). This enhancement allows users to visualize group-specific thresholds or key values on the density plot, providing a clearer understanding of the distribution of feature expression levels in relation to the specified vline values. This is ideal to visualize the MALAT1 threshold test results for each group in a single plot, making it easier to compare and interpret the data across different groups.
+### 0.8.1
 
-#### 🛠️ Bug Fixes
+- Uncluttered namespace conflicts between `dplyr` and `stats`.
 
-- Improvement of code readability and maintainability by refactoring the `FeatureDensityPlot()` function. This includes better organization of the code, clearer variable names, and enhanced documentation to make it easier for users to understand and utilize the function effectively.
-- Enhanced documentation of the code in several modules.
+### 0.8.0
 
-### v0.8.1
+- `CalculateQC()` now computes `nCount_logRNA` and `nFeature_logRNA` from normalized counts.
+- Added cell cycle scoring support to `CalculateQC()`.
+- Added MALAT1-based QC thresholding to `CalculateQC()`, producing `MALAT1.threshold` and `MALAT1.pass` metadata columns.
+- Fixed layer-related bugs in plotting functions.
 
-### 🛠️ Bug Fixes
+### 0.7.1
 
-- Unclutters namespace between dplyr and stats.
+- Hardened `FeatureScatterGradient()` argument validation and single-layer handling, treating `""` and `"null"` as omitted layers and enforcing numeric gradient limit ordering when both bounds are specified.
+- Improved grouped `FeatureScatterGradient()` behaviour: NA grouping values are excluded, per-group correlations appear as subtitles, and a single global viridis gradient scale with shared legend is assembled via `patchwork::plot_layout(guides = "collect")`.
+- Updated `FeatureDensityPlot()` to use `group.by = "ident"` by default for direct `FetchData()` compatibility; output names cleaned up to use `feature_layer` for assay-backed features and bare feature names for metadata-backed features.
+- Enhanced `VlnPlotGradient()` to support per-feature custom plot titles via `plot.title` while maintaining `feature_layer` naming for assay-backed features when a layer is specified.
+- Fixed several plotting edge cases: handling NAs and empty strings in all layer options as `NULL`, avoiding errors when using default grouping by identity, and eliminating duplicate legends in grouped gradient plots.
 
----
+### 0.7.0 (beta)
 
-#### v0.8.0
+- Roxygenized the package and aligned documentation for the main plotting utilities and QC helpers.
+- Introduced the gradient-based visualization suite (`FeatureScatterGradient`, `FeatureDensityPlot`, `VlnPlotGradient`, `QCMetricsBoxplot`) with consistent viridis-based palettes and Seurat-compatible semantics.
 
-##### 🚀 New Features
-
-- **Improved QC Metrics**: The `CalculateQC()` function now computes log-normalized counts per cell and detected features per cell for the normalized layer, adding them as `nCount_logRNA` and `nFeature_logRNA`.
-- **Cell Cycle Scoring**: The function now includes cell cycle scoring capabilities.
-- **MALAT1-based QC Thresholding**: The function now supports MALAT1-based QC thresholding, adding `MALAT1.threshold` (numeric) and `MALAT1.pass` (boolean) columns to `meta.data`.
-
-##### 🛠️ Bug Fixes
-
-- Fixed issues with layer-related options in various plotting functions.
-- Unclutters namespace between dplyr and stats.
 
 ***
 
@@ -347,12 +465,13 @@ results <- scGSEAmarkers(
 
 GPLv3 © José Manuel Gómez Silva
 
+
 ## Contact and contributions
 
-If you find bugs, have suggestions for improvements, please open an issue or pull request on GitHub.
+If you find bugs or have suggestions, please open an issue or pull request on GitHub.
 
 When contributing code:
 
-- Follow the existing style (based partially on Google's R style guide: CamelCase for exported functions, dot.case for arguments/variables, explicit `package::function` calls, etc).
+- Follow the existing style (based partially on Google's R style guide: CamelCase for exported functions, dot.case for arguments/variables, explicit `package::function` calls).
 - Include clear roxygen documentation and tests where appropriate.
-- Respect licensing and attribution, particularly for any further upstream code you may incorporate.
+- Respect licensing and attribution, particularly for any upstream code you incorporate.
