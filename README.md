@@ -4,7 +4,7 @@ An R package providing single-cell RNA-seq utility functions to complement Seura
 
 ## Status and version
 
-- Current package version: **0.8.4-beta**
+- Current package version: **0.8.5-beta**
 - Status: **beta**; some features are still under development and may change in future releases. Please report any issues on GitHub.
 
 ## Installation

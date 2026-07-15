@@ -240,7 +240,7 @@ ExtractFeatureTestResults <- function(
 #' .SetCommonScales(pw)
 #' }
 #'
-#' @importFrom ggplot2 ggplot_build scale_x_continuous scale_y_continuous
+#' @importFrom ggplot2 ggplot_build coord_cartesian
 #' @import patchwork
 #'
 #' @noRd
@@ -277,14 +277,11 @@ ExtractFeatureTestResults <- function(
   global.y.max <- max(plot.limits$y_max)
 
   # 4. Redraw the plot with the new limits.
-  # Supress the "already present scale" warning.
   plot <- (plot) &
-    suppressWarnings(ggplot2::scale_x_continuous(
-      limits = c(global.x.min, global.x.max)
-    )) &
-    suppressWarnings(ggplot2::scale_y_continuous(
-      limits = c(global.y.min, global.y.max)
-    ))
+    ggplot2::coord_cartesian(
+      xlim = c(global.x.min, global.x.max),
+      ylim = c(global.y.min, global.y.max)
+    )
 
   return(plot)
 }

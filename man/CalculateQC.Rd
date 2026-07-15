@@ -32,7 +32,7 @@ using the updated S and G2/M phase gene sets. If `FALSE`, cell cycle scoring wil
 \item{perform.MALAT1.test}{Default: `TRUE`. If `TRUE`, the function will apply the MALAT1 thresholding
 function to the Seurat object. If `FALSE`, the MALAT1 thresholding will be skipped.}
 
-\item{...}{Additional arguments passed to the underlying `.CalculateFeatureThresholdSeurat()`
+\item{...}{Additional arguments passed to the underlying `CalculateFeatureThresholdSeurat()`
  function, such as:
 \itemize{
   \item \code{bw.bandwidth}: Bandwidth for kernel density estimation (default: 0.01).
@@ -67,9 +67,13 @@ The following metadata columns are added to SeuratObject:
   \item percent.ribo: percentage of counts matching '^RP[SL]'
   \item percent.hb: percentage of counts matching '^HB[^(P)]'
   \item percent.ig: percentage of counts matching '^IG'
-  \item percent.plat: percentage of counts matching 'PECAM1|PF4'
-  \item percent.MALAT1, percent.S100A9, percent.S100A8, percent.FCGR3B: individual gene percentages
-  \item log10_nFeature_RNA, log10_nCount_RNA: base-10 logarithms of nFeature_RNA and nCount_RNA
+  \item percent.plat: percentage of counts matching
+    'PPBP|PF4|GP9|ITGA2B|TUBB1|ITGB3|GP1BA'
+  \item percent.MALAT1: percentage of counts matching 'MALAT1', a long
+    non-coding RNA that can allow to identify low-quality cells.
+  \item percent.S100A9, percent.S100A8, percent.FCGR3B: individual gene percentages
+  \item log10_nFeature_RNA, log10_nCount_RNA: base-10 logarithms of
+    nFeature_RNA and nCount_RNA
   \item complexity: ratio log10_nFeature_RNA / log10_nCount_RNA
 }
 }
