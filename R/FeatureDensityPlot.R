@@ -409,7 +409,7 @@ FeatureDensityPlot <- function(
       clean = FALSE
     )
 
-    group.values <- as.character(group.data[[group.fetch.var]])
+    group.values <- sort(as.character(group.data[[group.fetch.var]]))
     group.label <- group.by
   } else {
     group.fetch.var <- NULL
