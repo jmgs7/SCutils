@@ -63,7 +63,6 @@
 #' @importFrom data.table rbindlist
 #'
 #' @export
-#'
 
 # Generate pattern dataframe for select the appropriate gene patterns for each species.
 patterns <- data.frame(
