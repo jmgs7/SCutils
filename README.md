@@ -169,7 +169,7 @@ FeatureScatterGradient(
 | `scale.colors` | `"viridis"` | Viridis palette option or letter code |
 | `lower.limit` | `NULL` | Lower gradient clamp; `NULL` infers from data |
 | `upper.limit` | `NULL` | Upper gradient clamp; `NULL` infers from data |
-| `corr.method` | `"pearson"` | Correlation method: `"pearson"`, `"spearman"`, or `"kendall"` |
+| `corr.method` | `"pearson"` | Correlation method: `"pearson"`, `"spearman"`, or `"kendall"`. `NULL` for no correlation|
 | `layer1` | `NULL` | Assay layer for `feature1`; `NULL` uses Seurat default; `""` and `"null"` treated as `NULL` |
 | `layer2` | `NULL` | Assay layer for `feature2`; semantics mirror `layer1` |
 | `layer.gradient` | `NULL` | Assay layer for `gradient`; metadata-backed features ignore this |
