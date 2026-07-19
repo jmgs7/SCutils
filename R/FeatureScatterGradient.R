@@ -55,7 +55,7 @@
 #' @param corr.method Character scalar. Method used to compute the correlation
 #'   between `feature1` and `feature2`. Accepted values are `"pearson"`
 #'   (default), `"spearman"`, and `"kendall"`. Passed to `stats::cor()` as the
-#'   `method` argument.
+#'   `method` argument. Set NULL to disable correlation computation and annotation.
 #' @param layer1 Character scalar, `NA` or `NULL`. Assay layer from which `feature1`
 #'   should be obtained (e.g. `"counts"`, `"data"`, `"scale.data"`). When
 #'   `NULL` or `NA`, Seurat's default layer is used. Empty strings and `"null"`
@@ -179,6 +179,8 @@ FeatureScatterGradient <- function(
   common.scales = TRUE,
   collect.axes = FALSE
 ) {
+  ## TODO: Add vline and hline plotting options.
+
   # Validate Seurat object: required for FetchData semantics and structure.
   if (!inherits(SeuratObject, "Seurat")) {
     stop("'SeuratObject' must be a Seurat object.")
@@ -248,18 +250,20 @@ FeatureScatterGradient <- function(
   # Validate corr.method: must be one of the allowed correlation methods.
   valid.methods <- c("pearson", "spearman", "kendall")
   if (
-    !is.character(corr.method) ||
-      length(corr.method) != 1L ||
-      is.na(corr.method)
+    !is.null(corr.method) &&
+      (!is.character(corr.method) ||
+        length(corr.method) != 1L ||
+        is.na(corr.method) ||
+        !tolower(corr.method) %in% valid.methods)
   ) {
-    stop("'corr.method' must be a single non-NA character value.")
-  }
-  corr.method.lower <- tolower(corr.method)
-  if (!corr.method.lower %in% valid.methods) {
     stop(sprintf(
-      "'corr.method' must be one of '%s'.",
+      "'corr.method' must be one of '%s' or NULL.",
       paste(valid.methods, collapse = "', '")
     ))
+  } else if (!is.null(corr.method)) {
+    corr.method.lower <- tolower(corr.method)
+  } else {
+    corr.method.lower <- NULL
   }
 
   # Validate scale.colors: must be a known viridis option or letter code.
@@ -583,7 +587,11 @@ FeatureScatterGradient <- function(
   gradient.label <- gradient
 
   # Format correlation method label for titles.
-  method.label <- formatMethodLabel(corr.method.lower)
+  if (!is.null(corr.method)) {
+    method.label <- formatMethodLabel(corr.method.lower)
+  } else {
+    method.label <- NULL
+  }
 
   # Ungrouped case: compute global correlation and build a single scatter plot.
   if (is.null(group.by)) {
@@ -595,21 +603,27 @@ FeatureScatterGradient <- function(
       stringsAsFactors = FALSE
     )
 
-    # Compute global correlation using selected method and pairwise complete obs.
-    corr.global <- suppressWarnings(
-      stats::cor(
-        x.values,
-        y.values,
-        method = corr.method.lower,
-        use = "pairwise.complete.obs"
+    if (!is.null(corr.method)) {
+      corr.method.lower <- tolower(corr.method)
+      # Compute global correlation using selected method and pairwise complete obs.
+      corr.global <- suppressWarnings(
+        stats::cor(
+          x.values,
+          y.values,
+          method = corr.method.lower,
+          use = "pairwise.complete.obs"
+        )
       )
-    )
 
-    # Round correlation to two decimal places.
-    corr.global.round <- round(corr.global, 2)
+      # Round correlation to two decimal places.
+      corr.global.round <- round(corr.global, 2)
 
-    # Build title string: e.g. "Pearson = 0.85".
-    corr.title <- paste0(method.label, " = ", corr.global.round)
+      # Build title string: e.g. "Pearson = 0.85".
+      corr.title <- paste0(method.label, " = ", corr.global.round)
+    } else {
+      # If correlation is disabled, set title to NULL.
+      corr.title <- NULL
+    }
 
     # Build ggplot: scatter of x vs y, colored by gradient.
     p <- ggplot2::ggplot(
@@ -668,14 +682,18 @@ FeatureScatterGradient <- function(
     y.group <- df.group$y
 
     # Compute group-specific correlation using selected method; handle NA cases.
-    corr.group <- suppressWarnings(
-      stats::cor(
-        x.group,
-        y.group,
-        method = corr.method.lower,
-        use = "pairwise.complete.obs"
+    if (!is.null(corr.method)) {
+      corr.group <- suppressWarnings(
+        stats::cor(
+          x.group,
+          y.group,
+          method = corr.method.lower,
+          use = "pairwise.complete.obs"
+        )
       )
-    )
+    } else {
+      corr.group <- NA_real_
+    }
 
     # Round correlation to two decimal places when available.
     corr.group.round <- if (!is.na(corr.group)) {
@@ -684,11 +702,15 @@ FeatureScatterGradient <- function(
       NA_real_
     }
 
-    corr.subtitle <- paste0(
-      method.label,
-      " = ",
-      if (is.na(corr.group.round)) "NA" else corr.group.round
-    )
+    if (!(is.null(corr.method))) {
+      corr.subtitle <- paste0(
+        method.label,
+        " = ",
+        if (is.na(corr.group.round)) "NA" else corr.group.round
+      )
+    } else {
+      corr.subtitle <- NULL
+    }
 
     # Build per-group scatter panel mapping x, y, and gradient to aesthetics.
     # Note that no color scale is defined here; a single shared scale is applied
