@@ -396,6 +396,14 @@ Sets common x and y axis limits across a `patchwork` joined ggplot object. Used 
 
 ## Changelog
 
+### 0.8.5-beta
+
+#### 🛠️ Bug fixes and improvements
+
+- `FeatureDensityPlot()` now sorts plots alphabetically by group as `FeatureScatterGradient()` does, ensuring consistent ordering of plots across different visualizations.
+- Now we apply coord_cartesian() instead of scale_x_continuous() and scale_y_continuous() in these functions to avoid issues with axis limits when using `common.scales = TRUE`. This change ensures that the axes are consistent across all plots without losing any data points or changing the density plot kernels.
+- We have updated the `percent.plat` metric calculation in `CalculateQC()`. Now it calculates the percentage of counts matching the following platelet-specific genes: `PPBP`, `PF4`, `GP9`, `ITGA2B`, `TUBB1`, `ITGB3`, and `GP1BA`. This addition allows for better identification of platelet contamination in single-cell RNA-seq data.
+
 ### 0.8.4-beta
 
 - The `FeatureDensityPlot()` and `FeatureScatterGradient()`functions now set a common x and y axes scale by default. You can override this behavior by setting the `common.scales` argument to `FALSE`. This enhancement allows for better comparison of feature distributions across different groups or conditions, as it ensures that the scales are consistent and comparable. They also include a new argument `collect.axes` (default `FALSE`) to draw a unique x and y axis per plot when `split.plot = TRUE`. This provides users with more flexibility in visualizing their data, allowing for clearer interpretation of feature distributions and relationships across different groups or conditions.

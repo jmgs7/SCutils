@@ -57,7 +57,7 @@ color scale. When `NULL`, the upper bound is left open and is inferred from #'  
 \item{corr.method}{Character scalar. Method used to compute the correlation
 between `feature1` and `feature2`. Accepted values are `"pearson"`
 (default), `"spearman"`, and `"kendall"`. Passed to `stats::cor()` as the
-`method` argument.}
+`method` argument. Set NULL to disable correlation computation and annotation.}
 
 \item{layer1}{Character scalar, `NA` or `NULL`. Assay layer from which `feature1`
 should be obtained (e.g. `"counts"`, `"data"`, `"scale.data"`). When
