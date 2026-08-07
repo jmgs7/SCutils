@@ -301,7 +301,7 @@ ExtractFeatureTestResults <- function(
 #' @param thresholds A list of thresholds to use for computing the pass/fail results.
 #'   To use Median Absolute Deviation (MAD) or percentile method, use mad or percentile respectively.
 #' @param operators A list of operators to use for computing the pass/fail results.
-#'   Valid operators are "upper", "lower", or "both" in the case of MAD or percentile method. 
+#'   Valid operators are "upper", "lower", or "both" in the case of MAD or percentile method.
 #'   For numeric thresholds, input the desired operators as strings. Valid operators: ">", "<", ">=", "<=", "==", "!=".
 #'   Use params nmad and percentile to set the number of MADs or the quantile to consider as outliers.
 #' @param nmad The number of MADs to use to compute the threshold.
@@ -542,9 +542,13 @@ ExtractFeatureTestResults <- function(
 
   # Validate operators parameter: must be one of the valid operators.
   if (is.character(operators) && length(operators) > 0) {
-
-    if (!tolower(operators) %in% c("upper", "lower", "both", ">", "<", ">=", "<=", "==", "!=")) {
-      stop("'operators' must be one of the valid operators: upper, lower, both, >, <, >=, <=, ==, !=.")
+    if (
+      !tolower(operators) %in%
+        c("upper", "lower", "both", ">", "<", ">=", "<=", "==", "!=")
+    ) {
+      stop(
+        "'operators' must be one of the valid operators: upper, lower, both, >, <, >=, <=, ==, !=."
+      )
     } else if (length(operators) == 1L) {
       operators <- rep(operators, length(features))
       operators <- tolower(operators)
@@ -557,12 +561,10 @@ ExtractFeatureTestResults <- function(
         length(features)
       ))
     }
-  
   } else {
     stop("'operators' must be a character vector.")
   }
   names(operators) <- features
-
 
   # Validate nmad parameter: must be a positive numeric value.
   if (!is.numeric(nmad) || length(nmad) != 1 || nmad <= 0) {
@@ -580,21 +582,24 @@ ExtractFeatureTestResults <- function(
 
   calculateStats <- function(data, stat, nmad = 3, percentile = 1) {
     if (stat == "mad") {
-      median <- median(data, na.rm = TRUE)
-      mad <- mad(data, constant = 1, na.rm = TRUE)
+      median <- stats::median(data, na.rm = TRUE)
+      mad <- stats::mad(data, na.rm = TRUE)
       lower.threshold <- median - nmad * mad
       upper.threshold <- median + nmad * mad
       return(list(lower = lower.threshold, upper = upper.threshold))
     } else if (stat == "percentile") {
-      percentile <-  percentile / 100
+      percentile <- percentile / 100
       lower.threshold <- quantile(data, probs = percentile / 100, na.rm = TRUE)
-      upper.threshold <- quantile(data, probs = 1 - percentile / 100, na.rm = TRUE)
+      upper.threshold <- quantile(
+        data,
+        probs = 1 - percentile / 100,
+        na.rm = TRUE
+      )
       return(list(lower = lower.threshold, upper = upper.threshold))
     }
   }
 
   lapply(features, function(feature) {
-
     # For each feature, determine the layer to use (if any) and fetch the corresponding data from the Seurat object.
     layer <- layer.per.feature[[feature]]
 
@@ -620,90 +625,99 @@ ExtractFeatureTestResults <- function(
     threshold <- thresholds.per.feature[[feature]]
 
     # Get the operator for the current feature from the normalized operators vector.
-    operator <- operators[[feature]] 
+    operator <- operators[[feature]]
 
-    # If the object is not splitted (split.layers == 1 && is.null(split.metadata)), we will compute the threshold for the entire Seurat object.
-    if (length(split.layers) == 1) {
+    if (!is.null(layer)) {
+      feature.metadata <- lapply(split.layers, function(split.layer) {
+        # Fetch the feature data for the current split layer.
+        feature.data <- SeuratObject::FetchData(
+          SeuratObject,
+          assay = assay,
+          vars = feature,
+          layer = split.layer
+        )
 
-      # Fetch the feature data for the entire Seurat object.
+        # Compute the nmad or percentile threshold if required.
+        if (is.character(threshold) && threshold %in% c("mad", "percentile")) {
+          if (!tolower(operator) %in% c("upper", "lower", "both")) {
+            stop(paste(
+              "Invalid operator",
+              operator,
+              "for feature",
+              feature,
+              ". Valid operators for MAD or percentile thresholds are 'upper', 'lower', or 'both'."
+            ))
+          }
+
+          stats <- calculateStats(
+            feature.data[[feature]],
+            threshold,
+            nmad,
+            percentile
+          )
+
+          feature.pass <- switch(
+            operator,
+            "upper" = feature.data[[feature]] < stats$upper,
+            "lower" = feature.data[[feature]] > stats$lower,
+            "both" = feature.data[[feature]] > stats$lower &
+              feature.data[[feature]] < stats$upper
+          )
+        } else {
+          # If a numeric threshold is provided, use it directly.
+          threshold.value <- threshold
+
+          feature.pass <- switch(
+            operator,
+            ">" = feature.data[[feature]] > threshold.value,
+            "<" = feature.data[[feature]] < threshold.value,
+            ">=" = feature.data[[feature]] >= threshold.value,
+            "<=" = feature.data[[feature]] <= threshold.value,
+            "==" = feature.data[[feature]] == threshold.value,
+            "!=" = feature.data[[feature]] != threshold.value,
+            stop(paste(
+              "Invalid operator",
+              operator,
+              "for feature",
+              feature,
+              ". Valid operators for numeric thresholds are '>', '<', '>=', '<=', '==', '!='."
+            ))
+          )
+        }
+
+        # Create a data.frame to store the threshold value and pass/fail results for each cell in the Seurat object.
+        results.df <- data.frame(
+          cell.id = row.names(feature.data),
+          feature.pass = feature.pass
+        )
+        # Rename the column of the results data frame to include the feature name for clarity.
+        names(results.df)[2] <- paste0(feature, ".pass")
+
+        return(results.df)
+      }) |> # Combine the results from all layers into a single data frame.
+        data.table::rbindlist() |>
+        as.data.frame()
+
+      # Set the row names of the feature.metadata data frame to the cell IDs
+      # for proper alignment with the Seurat object's metadata.
+      row.names(feature.metadata) <- feature.metadata$cell.id
+      # Delete the cell.id column from feature.metadata as it is now redundant with the row names.
+      feature.metadata$cell.id <- NULL
+    } else {
       feature.data <- SeuratObject::FetchData(
         SeuratObject,
         assay = assay,
-        vars = feature,
-        layer = split.layers
+        layer = layer,
+        vars = c(feature, split.metadata)
       )
 
-      # Compute the nmad or percentile threshold if required.
-      if (is.character(threshold) && threshold %in% c("mad", "percentile")) {
+      if (!is.null(metadata.layers)) {}
+    }
 
-        if (!tolower(operator) %in% c("upper", "lower", "both")) {
-          stop(paste("Invalid operator", operator, "for feature", feature, ". Valid operators for MAD or percentile thresholds are 'upper', 'lower', or 'both'."))
-        }
-
-        stats <- calculateStats(feature.data[[feature]], threshold, nmad, percentile)
-
-      feature.pass <- switch(
-        operator,
-        "upper" = feature.data[[feature]] < stats$upper,
-        "lower" = feature.data[[feature]] > stats$lower,
-        "both" = feature.data[[feature]] > stats$lower & feature.data[[feature]] < stats$upper
-      )
-        
-      } else {
-
-        # If a numeric threshold is provided, use it directly.
-        threshold.value <- threshold
-        
-        feature.pass <- switch(
-          operator,
-          ">" = feature.data[[feature]] > threshold.value,
-          "<" = feature.data[[feature]] < threshold.value,
-          ">=" = feature.data[[feature]] >= threshold.value,
-          "<=" = feature.data[[feature]] <= threshold.value,
-          "==" = feature.data[[feature]] == threshold.value,
-          "!=" = feature.data[[feature]] != threshold.value,
-          stop(paste("Invalid operator", operator, "for feature", feature, ". Valid operators for numeric thresholds are '>', '<', '>=', '<=', '==', '!='."))
-        )
-
-      }
-
-      # Create a data.frame to store the threshold value and pass/fail results for each cell in the Seurat object.
-      results.df <- data.frame(
-        cell.id = row.names(feature.data),
-        feature.pass = feature.pass
-      )
-      # Rename the column of the results data frame to include the feature name for clarity.
-      names(results.df)[2] <- paste0(feature, ".pass")
-      # Name the rows as the cells id for proper alignment with the Seurat object's metadata.
-      row.names(results.df) <- results.df$cell.id
-
-    # If the object is splitted, we will compute the threshold for each layer separately.
-    } else {
-
-      results.df <- lapply(split.layers, function(split.layer) {
-
-          feature.data <- SeuratObject::FetchData(
-            SeuratObject,
-            assay = assay,
-            vars = feature,
-            layer = split.layer
-          )
-
-        # In case we are not using the meta.data layer, we will fetch the feature data for the current split layer.
-        if (!is.null(split.layers)) {
-          # Fetch the feature data for the current split layer.
-        } else {
-          # If no split.metadata is provided, we will use the entire Seurat object.
-          feature.data <- SeuratObject::FetchData(
-            SeuratObject,
-            assay = assay,
-            vars = feature,
-            layer = split.layer
-          )
-        }
-      })
+    # END OF FEATRUE LAPPLY
   })
-}
 
+  # END OF FUNCTION.
+}
 
 ## TODO: Adapt the function to the new philosophy, it only matters if the layer is null or not. split.layer will either take as values the list of layers of the splited object, or a single layer if it is not splitted. If we are using the metadata layer, split.layer will be NULL, and automatically the function will use the metadata layer. In that case, we split the metadata with the split.metadata column. It that is aslo null, it will compute the threshold (if necesary) for the entire SeuratObject. If the layer is not null, it will compute the threshold for each layer separately, respecting the split structure of the SeuratObject.
