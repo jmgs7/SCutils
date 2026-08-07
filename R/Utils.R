@@ -599,7 +599,7 @@ ExtractFeatureTestResults <- function(
     }
   }
 
-  lapply(features, function(feature) {
+  new.metadata <- lapply(features, function(feature) {
     # For each feature, determine the layer to use (if any) and fetch the corresponding data from the Seurat object.
     layer <- layer.per.feature[[feature]]
 
@@ -612,13 +612,8 @@ ExtractFeatureTestResults <- function(
         search = layer
       )
     } else {
-      # If no specific layer is provided, it will default to the meta.data. To respect the split layer structure, we will fetch the data for each layer separately and compute the threshold for each layer independently using the split.metatadata column to identify the layers.
+      # If no specific layer is provided, it will default to the meta.data.
       split.layers <- layer
-      if (!is.null(split.metadata)) {
-        metadata.layers <- unique(SeuratObject@meta.data[[split.metadata]])
-      } else {
-        metadata.layers <- NULL
-      }
     }
 
     # Get the threshold value for the current feature from the normalized thresholds list.
@@ -664,17 +659,14 @@ ExtractFeatureTestResults <- function(
               feature.data[[feature]] < stats$upper
           )
         } else {
-          # If a numeric threshold is provided, use it directly.
-          threshold.value <- threshold
-
           feature.pass <- switch(
             operator,
-            ">" = feature.data[[feature]] > threshold.value,
-            "<" = feature.data[[feature]] < threshold.value,
-            ">=" = feature.data[[feature]] >= threshold.value,
-            "<=" = feature.data[[feature]] <= threshold.value,
-            "==" = feature.data[[feature]] == threshold.value,
-            "!=" = feature.data[[feature]] != threshold.value,
+            ">" = feature.data[[feature]] > thresholds,
+            "<" = feature.data[[feature]] < threshold,
+            ">=" = feature.data[[feature]] >= threshold,
+            "<=" = feature.data[[feature]] <= threshold,
+            "==" = feature.data[[feature]] == threshold,
+            "!=" = feature.data[[feature]] != threshold,
             stop(paste(
               "Invalid operator",
               operator,
@@ -695,29 +687,94 @@ ExtractFeatureTestResults <- function(
 
         return(results.df)
       }) |> # Combine the results from all layers into a single data frame.
-        data.table::rbindlist() |>
-        as.data.frame()
-
-      # Set the row names of the feature.metadata data frame to the cell IDs
-      # for proper alignment with the Seurat object's metadata.
-      row.names(feature.metadata) <- feature.metadata$cell.id
-      # Delete the cell.id column from feature.metadata as it is now redundant with the row names.
-      feature.metadata$cell.id <- NULL
+        data.table::rbindlist()
     } else {
-      feature.data <- SeuratObject::FetchData(
+      metadata.layers <- SeuratObject::FetchData(
         SeuratObject,
         assay = assay,
         layer = layer,
         vars = c(feature, split.metadata)
-      )
+      ) |>
+        tibble::rownames_to_column(var = "cell.id") |>
+        dplyr::group_by(split.metadata) |>
+        dplyr::group_split()
 
-      if (!is.null(metadata.layers)) {}
-    }
+      feature.metadata <- lapply(metadata.layers, function(metadata.layer) {
+        # Compute the nmad or percentile threshold if required.
+        if (is.character(threshold) && threshold %in% c("mad", "percentile")) {
+          if (!tolower(operator) %in% c("upper", "lower", "both")) {
+            stop(paste(
+              "Invalid operator",
+              operator,
+              "for feature",
+              feature,
+              ". Valid operators for MAD or percentile thresholds are 'upper', 'lower', or 'both'."
+            ))
+          }
 
-    # END OF FEATRUE LAPPLY
-  })
+          stats <- calculateStats(
+            metadata.layer[[feature]],
+            threshold,
+            nmad,
+            percentile
+          )
 
-  # END OF FUNCTION.
-}
+          feature.pass <- switch(
+            operator,
+            "upper" = metadata.layer[[feature]] < stats$upper,
+            "lower" = metadata.layer[[feature]] > stats$lower,
+            "both" = metadata.layer[[feature]] > stats$lower &
+              metadata.layer[[feature]] < stats$upper
+          )
+        } else {
+          feature.pass <- switch(
+            operator,
+            ">" = metadata.layer[[feature]] > threshold,
+            "<" = metadata.layer[[feature]] < threshold,
+            ">=" = metadata.layer[[feature]] >= threshold,
+            "<=" = metadata.layer[[feature]] <= threshold,
+            "==" = metadata.layer[[feature]] == threshold,
+            "!=" = metadata.layer[[feature]] != threshold,
+            stop(paste(
+              "Invalid operator",
+              operator,
+              "for feature",
+              feature,
+              ". Valid operators for numeric thresholds are '>', '<', '>=', '<=', '==', '!='."
+            ))
+          )
+        }
 
-## TODO: Adapt the function to the new philosophy, it only matters if the layer is null or not. split.layer will either take as values the list of layers of the splited object, or a single layer if it is not splitted. If we are using the metadata layer, split.layer will be NULL, and automatically the function will use the metadata layer. In that case, we split the metadata with the split.metadata column. It that is aslo null, it will compute the threshold (if necesary) for the entire SeuratObject. If the layer is not null, it will compute the threshold for each layer separately, respecting the split structure of the SeuratObject.
+        # Create a data.frame to store the threshold value and pass/fail results for each cell in the Seurat object.
+        results.df <- data.frame(
+          cell.id = metadata.layer$cell.id,
+          feature.pass = feature.pass
+        )
+        # Rename the column of the results data frame to include the feature name for clarity.
+        names(results.df)[2] <- paste0(feature, ".pass")
+
+        return(results.df)
+      }) |> # Combine the results from all layers into a single data frame.
+        data.table::rbindlist()
+    } # END OF IF-ELSE FOR LAYER NULL CHECK.
+
+    return(feature.metadata)
+  }) |> # END OF FEATRUE LAPPLY
+    # Join the results of all features into a single data frame.
+    purrr::reduce(dplyr::full_join, by = "cell.id") |>
+    # Convert the combined results to a data frame.
+    as.data.frame()
+
+  # Set the row names of the feature.metadata data frame to the cell IDs for proper alignment with the Seurat object's metadata.
+  row.names(new.metadata) <- new.metadata$cell.id
+  # Delete the cell.id column from feature.metadata as it is now redundant with the row names
+  new.metadata$cell.id <- NULL
+
+  # Add the calculated QC metrics to the Seurat object's metadata.
+  SeuratObject <- Seurat::AddMetaData(
+    object = SeuratObject,
+    metadata = new.metadata
+  )
+
+  return(SeuratObject)
+} # END OF FUNCTION.
