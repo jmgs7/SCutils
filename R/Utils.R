@@ -286,6 +286,232 @@ ExtractFeatureTestResults <- function(
   return(plot)
 }
 
+#' @title .collapse_boolean_columns
+#'
+#' @description
+#' Combine repeated Boolean columns after multiple full_join() operations
+#'
+#' This function is designed to process the result of a pipeline in which
+#' multiple data frames have been combined using full_join().
+#'
+#' The input data frames may contain different test results obtained from
+#' applying several thresholds to the same sample.
+#'
+#' For example, after several full_join() operations, the same metric may
+#' appear under the following names:
+#'
+#'   percent.mt.pass.x
+#'   percent.mt.pass.y
+#'   percent.mt.pass
+#'
+#' The function recognises that all these columns belong to the same family
+#' and combines them using the logical AND operator:
+#'
+#'   percent.mt.x & percent.mt.y & percent.mt
+#'
+#' The result is stored in a single column called percent.mt.
+#'
+#' The function can process several independent column families at the same
+#' time, for example:
+#'
+#'   percent.mt.pass.x       percent.mt.pass.y       percent.mt.pass
+#'   percent.ribo.pass.x     percent.ribo.pass.y     percent.ribo.pass
+#'   nFeature_RNA.pass.x     nFeature_RNA.pass.y
+#'
+#' Each family is combined independently.
+#'
+#' The function does not need to know:
+#'
+#'   * The names of the metrics.
+#'   * The number of input data frames.
+#'   * The number of thresholds that were applied.
+#'   * The column that was used as the full_join() key.
+#'
+#' The function assumes that the columns being combined contain logical
+#' values, such as TRUE and FALSE.
+#'
+#' If at least one NA value is found in any column, the function stops
+#' execution using stop(). It does not automatically convert NA values to
+#' FALSE, because the appropriate strategy for handling missing values should
+#' be decided explicitly before combining the Boolean results.
+#'
+#' @param data
+#' A data frame resulting from one or more full_join() operations.
+#'
+#' @return
+#' The same type of object as data, with each repeated column family reduced
+#' to a single column per metric.
+#'
+#' @details
+#' dplyr::full_join() normally uses the suffixes ".x" and ".y" when it finds
+#' columns with the same name that are not used as join keys.
+#'
+#' When several full_join() operations are performed successively, the same
+#' metric may end up with names such as:
+#'
+#'   metric.x
+#'   metric.y
+#'   metric
+#'
+#' or even:
+#'
+#'   metric.x.x
+#'   metric.x.y
+#'   metric.y
+#'
+#' The function removes all final ".x" and ".y" suffix sequences in order to
+#' obtain the base name of each column.
+#'
+#' For example:
+#'
+#'   metric.x       -> metric
+#'   metric.y       -> metric
+#'   metric.x.x     -> metric
+#'   metric.x.y     -> metric
+#'   metric         -> metric
+#'
+#' The columns are then grouped according to their base name, and the values
+#' within each group are combined using purrr::reduce() and the logical AND
+#' operator.
+#'
+#' @examples
+#' # Create a table containing the results of a first threshold.
+#' first_test <- tibble::tibble(
+#'   sample = c("S1", "S2", "S3"),
+#'   percent.mt = c(TRUE, TRUE, FALSE)
+#' )
+#'
+#' # Create a table containing the results of a second threshold.
+#' second_test <- tibble::tibble(
+#'   sample = c("S1", "S2", "S3"),
+#'   percent.mt = c(TRUE, FALSE, TRUE)
+#' )
+#'
+#' # Create a table containing a different metric.
+#' ribosomal_test <- tibble::tibble(
+#'   sample = c("S1", "S2", "S3"),
+#'   percent.ribo = c(TRUE, TRUE, FALSE)
+#' )
+#'
+#' # Store the tables in a list.
+#' data.frames <- list(
+#'   first_test,
+#'   second_test,
+#'   ribosomal_test
+#' )
+#'
+#' # Combine all tables using full_join().
+#' joined_data <- data.frames |>
+#'   purrr::reduce(
+#'     .f = dplyr::full_join,
+#'     by = "sample"
+#'   )
+#'
+#' # Reduce repeated columns using logical AND.
+#' result <- joined_data |>
+#'   .collapse_boolean_columns()
+#'
+#' @importFrom dplyr select any_of
+#' @importFrom purrr reduce
+
+.collapse_boolean_columns <- function(data) {
+  # Capture original column names once so grouping logic is deterministic.
+  column.names <- names(data)
+
+  # Identify columns containing at least one NA value.
+  #
+  # The function keeps existing behavior: it warns but does not stop.
+  na.columns <- column.names[
+    vapply(
+      X = data,
+      FUN = anyNA,
+      FUN.VALUE = logical(1)
+    )
+  ]
+
+  # Emit a single warning that lists all columns containing NA values.
+  if (length(na.columns) > 0L) {
+    warning(
+      paste(
+        "NA values were found in the following columns:",
+        paste(na.columns, collapse = ", ")
+      )
+    )
+  }
+
+  # Compute each column's base name by removing one-or-more trailing .x/.y suffixes.
+  #
+  # Examples:
+  #   metric.x     -> metric
+  #   metric.y     -> metric
+  #   metric.x.y   -> metric
+  #   metric       -> metric
+  base.names <- sub(
+    pattern = "(\\.x|\\.y)+$",
+    replacement = "",
+    x = column.names
+  )
+
+  # Group original column names by their base name.
+  #
+  # This gives a named list where each element contains all versions of the same
+  # logical metric (e.g., metric, metric.x, metric.y).
+  grouped.names <- split(
+    x = column.names,
+    f = base.names
+  )
+
+  # Keep only groups that truly have repeated columns.
+  #
+  # Single-name groups do not need reduction and are left untouched.
+  repeated.groups <- grouped.names[
+    lengths(grouped.names) > 1L
+  ]
+
+  # Iterate over each repeated base-name family.
+  for (base.name in names(repeated.groups)) {
+    # Retrieve the concrete column names for this family.
+    repeated.names <- repeated.groups[[base.name]]
+
+    # Extract each column as a vector using [[ ]].
+    #
+    # This avoids `[.data.table` join semantics and is stable for both
+    # data.frame and data.table inputs.
+    repeated.columns <- lapply(
+      X = repeated.names,
+      FUN = function(column.name) data[[column.name]]
+    )
+
+    # Reduce the family to one logical vector using pairwise AND.
+    #
+    # This preserves previous semantics exactly:
+    #   metric = metric.x & metric.y (& metric if present, etc.)
+    data[[base.name]] <- purrr::reduce(
+      .x = repeated.columns,
+      .f = `&`
+    )
+
+    # Identify only suffixed versions that should be dropped after reduction.
+    #
+    # If an unsuffixed base column exists, it is retained (now overwritten with
+    # the reduced values). If it does not exist, it has just been created above.
+    suffixed.names <- repeated.names[
+      grepl(
+        pattern = "(\\.x|\\.y)+$",
+        x = repeated.names
+      )
+    ]
+
+    # Remove auxiliary suffixed columns from the result object.
+    data <- dplyr::select(
+      .data = data,
+      -dplyr::any_of(suffixed.names)
+    )
+  }
+
+  # Return the collapsed table with one boolean column per base metric.
+  data
+}
 
 #' @title FeatureTest
 #'
@@ -302,9 +528,13 @@ ExtractFeatureTestResults <- function(
 #'
 #' @param SeuratObject A Seurat object containing the data.
 #' @param features The features (gene or metadata variable) to compute the threshold for.
+#'   You can provide the same feature multiple times with different thresholds and operators
+#'   to compute multiple tests for the same feature. FeatureTest will automatically handle
+#'   the repeated features and compute the results for each test separately, and the final
+#'   output will be TRUE if all tests for the same feature pass, and FALSE if any test fails.
 #' @param assay The assay to use for fetching the feature data.
 #' @param layers The layer type to use for fetching the feature data (counts, data...).
-#'   If NULL, the default layer (meta.data) is used.
+#'   If NULL, the default layer (meta.data) is used. (NAs, emtpy strings, and "null" are treated as NULL).
 #'   In the case of a split SeuratObject, the function will automatically compute the threshold for each layer separately
 #'   respecting the data structure.
 #' @param thresholds A list of thresholds to use for computing the pass/fail results.
@@ -329,9 +559,9 @@ ExtractFeatureTestResults <- function(
 #'
 #' seurat_object <- FeatureTest(
 #'   SeuratObject = seurat_object,
-#'   features = c("Gene1", "Gene2"),
+#'   features = c("Gene1", "Gene2", "percent.mt"),
 #'   assay = "RNA",
-#'   layers = NULL,
+#'   layers = c("couts", "data", NA),
 #'   thresholds = "mad",
 #'   operators = "both",
 #'   nmad = 3,
@@ -339,7 +569,11 @@ ExtractFeatureTestResults <- function(
 #' )
 #' }
 #'
-#' @import Seurat SeuratObject dplyr data.table purr
+#' @import Seurat SeuratObject
+#' @importFrom stats median mad quantile
+#' @importFrom dplyr full_join
+#' @importFrom purrr reduce
+#' @importFrom data.table rbindlist()
 #' @export
 
 FeatureTest <- function(
@@ -385,7 +619,7 @@ FeatureTest <- function(
     if (length(layers) == 1L) {
       layer.per.feature <- rep(list(layers), length(features))
     } else if (length(layers) == length(features)) {
-      layer.per.feature <- lapply(layer, function(x) {
+      layer.per.feature <- lapply(layers, function(x) {
         if (is.na(x) || tolower(x) == "null" || tolower(x) == "") {
           return(NULL)
         }
@@ -446,7 +680,7 @@ FeatureTest <- function(
         (is.character(x) && tolower(x) %in% c("null", "na", ""))
     ) {
       stop(
-        "Invalid threshold value. Threshold values can be either a supported keyword ('upper', 'lower', 'both') or a numeric value."
+        "Invalid threshold value. Threshold values can be either a supported keyword ('mad', 'percentile') or a numeric value."
       )
     }
     # Character inputs can be either a supported keyword or a numeric value
@@ -495,7 +729,7 @@ FeatureTest <- function(
     # A NULL threshold is not valid, and will output an error.
     if (is.null(thresholds)) {
       stop(
-        "Thresholds cannot be NULL. Please provide a valid threshold value or keyword ('upper', 'lower', 'both')."
+        "Thresholds cannot be NULL. Please provide a valid threshold value or keyword ('mad', 'percentile')."
       )
     }
     # Numeric inputs are accepted as either one value recycled to all targets
@@ -564,8 +798,10 @@ FeatureTest <- function(
   # Validate operators parameter: must be one of the valid operators.
   if (is.character(operators) && length(operators) > 0) {
     if (
-      !tolower(operators) %in%
-        c("upper", "lower", "both", ">", "<", ">=", "<=", "==", "!=")
+      !all(
+        tolower(operators) %in%
+          c("upper", "lower", "both", ">", "<", ">=", "<=", "==", "!=")
+      )
     ) {
       stop(
         "'operators' must be one of the valid operators: upper, lower, both, >, <, >=, <=, ==, !=."
@@ -615,10 +851,10 @@ FeatureTest <- function(
       return(list(lower = lower.threshold, upper = upper.threshold))
     } else if (stat == "percentile") {
       percentile <- percentile / 100
-      lower.threshold <- quantile(data, probs = percentile / 100, na.rm = TRUE)
+      lower.threshold <- quantile(data, probs = percentile, na.rm = TRUE)
       upper.threshold <- quantile(
         data,
-        probs = 1 - percentile / 100,
+        probs = 1 - percentile,
         na.rm = TRUE
       )
       return(list(lower = lower.threshold, upper = upper.threshold))
@@ -628,14 +864,26 @@ FeatureTest <- function(
   # ---------------------------------------------------------------------------
   # 3. COMPUTE THRESHOLDS AND PASS/FAIL RESULTS FOR EACH FEATURE
   # ---------------------------------------------------------------------------
-  new.metadata <- lapply(features, function(feature) {
+  # Iterate by integer position rather than by feature name.
+  #
+  # Using seq_along(features) gives each entry a unique index `i` even when
+  # the same feature name appears more than once in `features`. This makes
+  # positional lookup in the per-feature tables (layer, threshold, operator)
+  # unambiguous: `list[[i]]` always retrieves the i-th element, whereas
+  # `list[[name]]` returns only the first element matching that name.
+  new.metadata <- lapply(seq_along(features), function(i) {
+    # Retrieve the feature name for this position.
+    feature <- features[[i]]
+
     # ---------------------------------------------------------------------------
     # 3.1. Determine the layer to use for the current feature and fetch the
     #      corresponding data from the Seurat object.
     # ---------------------------------------------------------------------------
 
-    # For each feature, determine the layer to use (if any) and fetch the corresponding data from the Seurat object.
-    layer <- layer.per.feature[[feature]]
+    # Look up the layer assigned to this specific entry by position, not by name.
+    # This ensures that when the same feature appears twice with different layers,
+    # each occurrence retrieves its own intended layer.
+    layer <- layer.per.feature[[i]]
 
     # To respect the split layer structure, we will fetch the cells id of each layer and use them to subset the Seurat object for the feature threshold computation.
     if (!is.null(layer)) {
@@ -646,22 +894,31 @@ FeatureTest <- function(
         search = layer
       )
     } else {
-      # If no specific layer is provided, it will default to the meta.data (layer = NULL).
-      split.layers <- layer
+      # If no specific layer is provided, it will default to the meta.data (layer = NULL). To respect the split layer structure, we will use the counts layers to obtain the split layers.
+      # If the object is not split, it will return a single layer containing all the cells of the SeuratObject anyway.
+      split.layers <- SeuratObject::Layers(
+        SeuratObject,
+        assay = assay,
+        search = "counts"
+      )
     }
 
     # Generate a list with the cells id of each layer to subset the Seurat object for the feature threshold computation.
+    # In the case the layer is NULL (use meta.data), we ensure to obtain the layer structure by using the counts layers.
     cells.list <- lapply(split.layers, function(split.layer) {
       cells <- SeuratObject::Cells(SeuratObject, layer = split.layer)
       return(cells)
     })
     names(cells.list) <- split.layers
 
-    # Get the threshold value for the current feature from the normalized thresholds list.
-    threshold <- thresholds.per.feature[[feature]]
+    # Look up threshold and operator for this entry by position.
+    #
+    # Positional lookup mirrors the layer lookup above: each duplicate occurrence
+    # of the same feature name retrieves its own independently validated setting.
+    threshold <- thresholds.per.feature[[i]]
 
     # Get the operator for the current feature from the normalized operators vector.
-    operator <- operators.per.feature[[feature]]
+    operator <- operators.per.feature[[i]]
 
     # ---------------------------------------------------------------------------
     # 3.2. Compute the threshold and pass/fail results for each split layer
@@ -703,12 +960,25 @@ FeatureTest <- function(
         )
 
         # Determine whether each cell passes or fails the threshold test based on the specified operator and the computed thresholds.
+        #
+        # A default branch is included to stop explicitly if an unrecognised operator
+        # somehow reaches this point. Without a default, switch() returns NULL silently,
+        # which would propagate to results.df and produce an all-NA pass column with
+        # no diagnostic message.
         feature.pass <- switch(
           operator,
           "upper" = feature.data[[feature]] < stats$upper,
           "lower" = feature.data[[feature]] > stats$lower,
           "both" = feature.data[[feature]] > stats$lower &
-            feature.data[[feature]] < stats$upper
+            feature.data[[feature]] < stats$upper,
+          # Default: should never be reached because operator is validated above.
+          # Included defensively so any bypass produces an informative error
+          # rather than a silent NULL.
+          stop(sprintf(
+            "Unrecognised operator '%s' for feature '%s'. Valid operators for MAD/percentile thresholds are 'upper', 'lower', 'both'.",
+            operator,
+            feature
+          ))
         )
 
         # ---------------------------------------------------------------------------
@@ -759,6 +1029,8 @@ FeatureTest <- function(
   }) |> # (END OF FEATURE LAPPLY)
     # Join the results of all features into a single data frame.
     purrr::reduce(dplyr::full_join, by = "cell.id") |>
+    # Collapse multiple tests for the same feature into a single column using logical AND.
+    .collapse_boolean_columns() |>
     # Convert the combined results to a data frame.
     as.data.frame()
   # Set the row names of the feature.metadata data frame to the cell IDs for proper alignment with the Seurat object's metadata.
