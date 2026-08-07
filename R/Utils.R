@@ -286,18 +286,27 @@ ExtractFeatureTestResults <- function(
   return(plot)
 }
 
-#' @title .FeatureTest
+
+#' @title FeatureTest
 #'
-#'  @description
+#' @description
 #' A helper function to compute the threshold and pass/fail results for a given features.
+#' FeatureTest work by fetching the feature data from the Seurat object,
+#' computing the threshold based on the specified method (MAD,percentile, or user's threshold),
+#' and determining whether each cell passes or fails the threshold test.
+#' The results are then added to the Seurat object's metadata.
+#' For each feature, the user must imput a threshold and a "operator". Operators determine the
+#' comparison that it will be performed between the feature values and the threshold.
+#' If multiple features are given, but only one threshold and operator are provided,
+#' the same threshold and operator will be applied to all features.
 #'
 #' @param SeuratObject A Seurat object containing the data.
+#' @param features The features (gene or metadata variable) to compute the threshold for.
 #' @param assay The assay to use for fetching the feature data.
-#' @param layers The layer type to use for fetching the feature data (meta.data, counts, data...).
+#' @param layers The layer type to use for fetching the feature data (counts, data...).
 #'   If NULL, the default layer (meta.data) is used.
 #'   In the case of a split SeuratObject, the function will automatically compute the threshold for each layer separately
 #'   respecting the data structure.
-#' @param features The features (gene or metadata variable) to compute the threshold for.
 #' @param thresholds A list of thresholds to use for computing the pass/fail results.
 #'   To use Median Absolute Deviation (MAD) or percentile method, use mad or percentile respectively.
 #' @param operators A list of operators to use for computing the pass/fail results.
@@ -310,25 +319,48 @@ ExtractFeatureTestResults <- function(
 #'
 #' @return SeuratObject A Seurat object with the computed threshold and pass/fail results added to the meta.data slot.
 #'
+#' @examples
+#'\dontrun{
 #'
+#' library(Seurat)
+#' library(dplyr)
+#' library(data.table)
+#' library(purrr)
 #'
+#' seurat_object <- FeatureTest(
+#'   SeuratObject = seurat_object,
+#'   features = c("Gene1", "Gene2"),
+#'   assay = "RNA",
+#'   layers = NULL,
+#'   thresholds = "mad",
+#'   operators = "both",
+#'   nmad = 3,
+#'   percentile = 1
+#' )
+#' }
+#'
+#' @import Seurat SeuratObject dplyr data.table purr
+#' @export
 
-.FeatureTest <- function(
+FeatureTest <- function(
   SeuratObject,
+  features,
   assay = "RNA",
   layers = NULL,
-  split.metadata = NULL,
-  features,
   thresholds = "mad",
   operators = "both",
-  stat = "mad",
   nmad = 3,
   percentile = 1
 ) {
+  # ---------------------------------------------------------------------------
+  # 1. INPUT VALIDATION AND NORMALIZATION.
+  # ---------------------------------------------------------------------------
+
   # Validate Seurat object: required for FetchData semantics and structure.
   if (!inherits(SeuratObject, "Seurat")) {
     stop("'SeuratObject' must be a Seurat object.")
   }
+
   # Validate assay: must be a character string and exist in the Seurat object.
   if (
     !is.character(assay) ||
@@ -339,6 +371,10 @@ ExtractFeatureTestResults <- function(
       "'assay' must be a single character string corresponding to an existing assay in the Seurat object."
     )
   }
+
+  # ---------------------------------------------------------------------------
+  # LAYER VALIDATION
+  # ---------------------------------------------------------------------------
   # Validate layers: must be NULL or a character vector of valid layer names in the Seurat object.
   # Normalize layer input to one layer assignment per requested feature.
   # Metadata variables will ignore the layer later, but keeping the vector
@@ -366,7 +402,6 @@ ExtractFeatureTestResults <- function(
     stop("'layer' must be NULL or a character vector.")
   }
   names(layer.per.feature) <- features
-
   # After normalization, layer.per.feature is a list of the same length as features, where each element is either NULL or a character string specifying the layer to use for that feature.
   # Now we check if the specified layers exist in the Seurat object, if not NULL.
   if (!is.null(layers)) {
@@ -388,29 +423,18 @@ ExtractFeatureTestResults <- function(
     })
   }
 
-  # Validate split.metadata: must be NULL or a character string corresponding to a column in meta.data.
-  if (!is.null(split.metadata)) {
-    if (!is.character(split.metadata) || length(split.metadata) != 1) {
-      stop(
-        "'split.metadata' must be a single character string corresponding to a column in meta.data."
-      )
-    }
-    if (!split.metadata %in% colnames(SeuratObject@meta.data)) {
-      stop(
-        "'split.metadata' column '",
-        split.metadata,
-        "' not found in meta.data."
-      )
-    }
-  }
-
   # Validate features: must be a character vector or character string.
   if (!is.character(features) || length(features) == 0) {
     stop("'features' must be a non-empty character vector.")
   }
 
+  # ---------------------------------------------------------------------------
+  # THRESHOLD VALIDATION
+  # ---------------------------------------------------------------------------
   # Validate thresholds.
   # We will recycle the normalizeVline framework from other functions of the package.
+
+  # DEFINE SINGLE ENTRY NORMALIZATION FUNCTION
   normalizeThresholdEntry <- function(
     x,
     valid.keywords = c("mad", "percentile")
@@ -425,7 +449,6 @@ ExtractFeatureTestResults <- function(
         "Invalid threshold value. Threshold values can be either a supported keyword ('upper', 'lower', 'both') or a numeric value."
       )
     }
-
     # Character inputs can be either a supported keyword or a numeric value
     # encoded as text.
     if (is.character(x)) {
@@ -445,7 +468,6 @@ ExtractFeatureTestResults <- function(
         x
       ))
     }
-
     # Numeric inputs must be scalar and non-missing.
     if (is.numeric(x)) {
       if (length(x) == 1L && !is.na(x)) {
@@ -454,7 +476,6 @@ ExtractFeatureTestResults <- function(
 
       stop("numeric thresholds must be a single non-NA value.")
     }
-
     # Any other type is unsupported.
     stop(sprintf(
       "threshold entry has unexpected type: %s",
@@ -462,9 +483,9 @@ ExtractFeatureTestResults <- function(
     ))
   }
 
+  # DEFINE FULL VECTOR NORMALIZATION FUNCTION
   # Normalize a full threshold input vector against an expected target length.
-  # The target length represents either the number of requested features or the
-  # number of group levels, depending on the plotting mode.
+  # The target length represents the number of requested features.
   normalizeThresholdVector <- function(
     thresholds,
     target.length = length(features),
@@ -477,7 +498,6 @@ ExtractFeatureTestResults <- function(
         "Thresholds cannot be NULL. Please provide a valid threshold value or keyword ('upper', 'lower', 'both')."
       )
     }
-
     # Numeric inputs are accepted as either one value recycled to all targets
     # or one value per target.
     if (is.numeric(thresholds)) {
@@ -485,7 +505,6 @@ ExtractFeatureTestResults <- function(
         entry <- normalizeThresholdEntry(thresholds, valid.keywords)
         return(rep(list(entry), target.length))
       }
-
       if (length(thresholds) == target.length) {
         return(lapply(
           as.list(thresholds),
@@ -493,7 +512,6 @@ ExtractFeatureTestResults <- function(
           valid.keywords = valid.keywords
         ))
       }
-
       stop(sprintf(
         "'thresholds' numeric input has length %d but %s has length %d; it must be length 1 or %d.",
         length(thresholds),
@@ -540,6 +558,9 @@ ExtractFeatureTestResults <- function(
   )
   names(thresholds.per.feature) <- features
 
+  # ---------------------------------------------------------------------------
+  # OPERATOR VALIDATION
+  # ---------------------------------------------------------------------------
   # Validate operators parameter: must be one of the valid operators.
   if (is.character(operators) && length(operators) > 0) {
     if (
@@ -564,12 +585,14 @@ ExtractFeatureTestResults <- function(
   } else {
     stop("'operators' must be a character vector.")
   }
-  names(operators) <- features
+  operators.per.feature <- as.list(operators)
+  names(operators.per.feature) <- features
 
   # Validate nmad parameter: must be a positive numeric value.
   if (!is.numeric(nmad) || length(nmad) != 1 || nmad <= 0) {
     stop("'nmad' must be a single positive numeric value.")
   }
+
   # Validate percentile parameter: must be a numeric value between 1 and 99.
   if (
     !is.numeric(percentile) ||
@@ -580,6 +603,9 @@ ExtractFeatureTestResults <- function(
     stop("'percentile' must be a single numeric value between 1 and 99.")
   }
 
+  # ---------------------------------------------------------------------------
+  # 2. DEFINE FUNCTION TO CALCULATE THRESHOLDS BASED ON MAD OR PERCENTILE
+  # ---------------------------------------------------------------------------
   calculateStats <- function(data, stat, nmad = 3, percentile = 1) {
     if (stat == "mad") {
       median <- stats::median(data, na.rm = TRUE)
@@ -599,182 +625,153 @@ ExtractFeatureTestResults <- function(
     }
   }
 
+  # ---------------------------------------------------------------------------
+  # 3. COMPUTE THRESHOLDS AND PASS/FAIL RESULTS FOR EACH FEATURE
+  # ---------------------------------------------------------------------------
   new.metadata <- lapply(features, function(feature) {
+    # ---------------------------------------------------------------------------
+    # 3.1. Determine the layer to use for the current feature and fetch the
+    #      corresponding data from the Seurat object.
+    # ---------------------------------------------------------------------------
+
     # For each feature, determine the layer to use (if any) and fetch the corresponding data from the Seurat object.
     layer <- layer.per.feature[[feature]]
 
-    # To respect the split layer structure, we will fetch the data for each layer separately and compute the threshold for each layer independently.
+    # To respect the split layer structure, we will fetch the cells id of each layer and use them to subset the Seurat object for the feature threshold computation.
     if (!is.null(layer)) {
-      # If a specific layer is provided, use it to fetch the data.
+      # If a specific layer is provided, use it to obtain the split layers.
       split.layers <- SeuratObject::Layers(
         SeuratObject,
         assay = assay,
         search = layer
       )
     } else {
-      # If no specific layer is provided, it will default to the meta.data.
+      # If no specific layer is provided, it will default to the meta.data (layer = NULL).
       split.layers <- layer
     }
+
+    # Generate a list with the cells id of each layer to subset the Seurat object for the feature threshold computation.
+    cells.list <- lapply(split.layers, function(split.layer) {
+      cells <- SeuratObject::Cells(SeuratObject, layer = split.layer)
+      return(cells)
+    })
+    names(cells.list) <- split.layers
 
     # Get the threshold value for the current feature from the normalized thresholds list.
     threshold <- thresholds.per.feature[[feature]]
 
     # Get the operator for the current feature from the normalized operators vector.
-    operator <- operators[[feature]]
+    operator <- operators.per.feature[[feature]]
 
-    if (!is.null(layer)) {
-      feature.metadata <- lapply(split.layers, function(split.layer) {
-        # Fetch the feature data for the current split layer.
-        feature.data <- SeuratObject::FetchData(
-          SeuratObject,
-          assay = assay,
-          vars = feature,
-          layer = split.layer
-        )
-
-        # Compute the nmad or percentile threshold if required.
-        if (is.character(threshold) && threshold %in% c("mad", "percentile")) {
-          if (!tolower(operator) %in% c("upper", "lower", "both")) {
-            stop(paste(
-              "Invalid operator",
-              operator,
-              "for feature",
-              feature,
-              ". Valid operators for MAD or percentile thresholds are 'upper', 'lower', or 'both'."
-            ))
-          }
-
-          stats <- calculateStats(
-            feature.data[[feature]],
-            threshold,
-            nmad,
-            percentile
-          )
-
-          feature.pass <- switch(
-            operator,
-            "upper" = feature.data[[feature]] < stats$upper,
-            "lower" = feature.data[[feature]] > stats$lower,
-            "both" = feature.data[[feature]] > stats$lower &
-              feature.data[[feature]] < stats$upper
-          )
-        } else {
-          feature.pass <- switch(
-            operator,
-            ">" = feature.data[[feature]] > thresholds,
-            "<" = feature.data[[feature]] < threshold,
-            ">=" = feature.data[[feature]] >= threshold,
-            "<=" = feature.data[[feature]] <= threshold,
-            "==" = feature.data[[feature]] == threshold,
-            "!=" = feature.data[[feature]] != threshold,
-            stop(paste(
-              "Invalid operator",
-              operator,
-              "for feature",
-              feature,
-              ". Valid operators for numeric thresholds are '>', '<', '>=', '<=', '==', '!='."
-            ))
-          )
-        }
-
-        # Create a data.frame to store the threshold value and pass/fail results for each cell in the Seurat object.
-        results.df <- data.frame(
-          cell.id = row.names(feature.data),
-          feature.pass = feature.pass
-        )
-        # Rename the column of the results data frame to include the feature name for clarity.
-        names(results.df)[2] <- paste0(feature, ".pass")
-
-        return(results.df)
-      }) |> # Combine the results from all layers into a single data frame.
-        data.table::rbindlist()
-    } else {
-      metadata.layers <- SeuratObject::FetchData(
+    # ---------------------------------------------------------------------------
+    # 3.2. Compute the threshold and pass/fail results for each split layer
+    #      and combine them into a single data frame.
+    # ---------------------------------------------------------------------------
+    feature.metadata <- lapply(cells.list, function(split.cells) {
+      # Fetch the feature data for the current split layer.
+      feature.data <- SeuratObject::FetchData(
         SeuratObject,
         assay = assay,
+        vars = feature,
         layer = layer,
-        vars = c(feature, split.metadata)
-      ) |>
-        tibble::rownames_to_column(var = "cell.id") |>
-        dplyr::group_by(split.metadata) |>
-        dplyr::group_split()
+        cells = split.cells
+      )
 
-      feature.metadata <- lapply(metadata.layers, function(metadata.layer) {
-        # Compute the nmad or percentile threshold if required.
-        if (is.character(threshold) && threshold %in% c("mad", "percentile")) {
-          if (!tolower(operator) %in% c("upper", "lower", "both")) {
-            stop(paste(
-              "Invalid operator",
-              operator,
-              "for feature",
-              feature,
-              ". Valid operators for MAD or percentile thresholds are 'upper', 'lower', or 'both'."
-            ))
-          }
-
-          stats <- calculateStats(
-            metadata.layer[[feature]],
-            threshold,
-            nmad,
-            percentile
-          )
-
-          feature.pass <- switch(
+      # ---------------------------------------------------------------------------
+      # A. If the threshold is a character keyword (mad or percentile),
+      #    compute the threshold based on the specified method and the provided
+      #    nmad or percentile values.
+      # ---------------------------------------------------------------------------
+      if (is.character(threshold) && threshold %in% c("mad", "percentile")) {
+        # If the threshold is a character keyword (mad or percentile), validate the operator and output an error message if invalid.
+        if (!tolower(operator) %in% c("upper", "lower", "both")) {
+          stop(paste(
+            "Invalid operator",
             operator,
-            "upper" = metadata.layer[[feature]] < stats$upper,
-            "lower" = metadata.layer[[feature]] > stats$lower,
-            "both" = metadata.layer[[feature]] > stats$lower &
-              metadata.layer[[feature]] < stats$upper
-          )
-        } else {
-          feature.pass <- switch(
-            operator,
-            ">" = metadata.layer[[feature]] > threshold,
-            "<" = metadata.layer[[feature]] < threshold,
-            ">=" = metadata.layer[[feature]] >= threshold,
-            "<=" = metadata.layer[[feature]] <= threshold,
-            "==" = metadata.layer[[feature]] == threshold,
-            "!=" = metadata.layer[[feature]] != threshold,
-            stop(paste(
-              "Invalid operator",
-              operator,
-              "for feature",
-              feature,
-              ". Valid operators for numeric thresholds are '>', '<', '>=', '<=', '==', '!='."
-            ))
-          )
+            "for feature",
+            feature,
+            ". Valid operators for MAD or percentile thresholds are 'upper', 'lower', or 'both'."
+          ))
         }
 
-        # Create a data.frame to store the threshold value and pass/fail results for each cell in the Seurat object.
-        results.df <- data.frame(
-          cell.id = metadata.layer$cell.id,
-          feature.pass = feature.pass
+        # Calculate the lower and upper thresholds based on the specified method (MAD or percentile) and the provided nmad or percentile values.
+        stats <- calculateStats(
+          feature.data[[feature]],
+          threshold,
+          nmad,
+          percentile
         )
-        # Rename the column of the results data frame to include the feature name for clarity.
-        names(results.df)[2] <- paste0(feature, ".pass")
 
-        return(results.df)
-      }) |> # Combine the results from all layers into a single data frame.
-        data.table::rbindlist()
-    } # END OF IF-ELSE FOR LAYER NULL CHECK.
+        # Determine whether each cell passes or fails the threshold test based on the specified operator and the computed thresholds.
+        feature.pass <- switch(
+          operator,
+          "upper" = feature.data[[feature]] < stats$upper,
+          "lower" = feature.data[[feature]] > stats$lower,
+          "both" = feature.data[[feature]] > stats$lower &
+            feature.data[[feature]] < stats$upper
+        )
 
+        # ---------------------------------------------------------------------------
+        # B. If the threshold is a character keyword (mad or percentile),
+        #    compute the threshold based on the specified method and the provided
+        #    nmad or percentile values.
+        # ---------------------------------------------------------------------------
+      } else {
+        feature.pass <- switch(
+          operator,
+          ">" = feature.data[[feature]] > threshold,
+          "<" = feature.data[[feature]] < threshold,
+          ">=" = feature.data[[feature]] >= threshold,
+          "<=" = feature.data[[feature]] <= threshold,
+          "==" = feature.data[[feature]] == threshold,
+          "!=" = feature.data[[feature]] != threshold,
+          stop(paste(
+            "Invalid operator",
+            operator,
+            "for feature",
+            feature,
+            ". Valid operators for numeric thresholds are '>', '<', '>=', '<=', '==', '!='."
+          ))
+        )
+      }
+
+      # ---------------------------------------------------------------------------
+      # 3.3. Create a data frame with the cell IDs and the pass/fail results for the current
+      # feature and split layer. The column name for the pass/fail results is renamed
+      # to include the feature name for clarity.
+      # ---------------------------------------------------------------------------
+      results.df <- data.frame(
+        cell.id = row.names(feature.data),
+        feature.pass = feature.pass
+      )
+      # Rename the column of the results data frame to include the feature name for clarity.
+      names(results.df)[2] <- paste0(feature, ".pass")
+      return(results.df)
+    }) |> # (END OF LAYER LAPPLY)
+      # Combine the results from all layers into a single data frame.
+      data.table::rbindlist()
+
+    # ---------------------------------------------------------------------------
+    # 3.4. Join all the results for each feature into a single data frame, ensuring
+    # that the cell IDs are preserved and aligned with the Seurat object's metadata.
+    # ---------------------------------------------------------------------------
     return(feature.metadata)
-  }) |> # END OF FEATRUE LAPPLY
+  }) |> # (END OF FEATURE LAPPLY)
     # Join the results of all features into a single data frame.
     purrr::reduce(dplyr::full_join, by = "cell.id") |>
     # Convert the combined results to a data frame.
     as.data.frame()
-
   # Set the row names of the feature.metadata data frame to the cell IDs for proper alignment with the Seurat object's metadata.
   row.names(new.metadata) <- new.metadata$cell.id
   # Delete the cell.id column from feature.metadata as it is now redundant with the row names
   new.metadata$cell.id <- NULL
 
-  # Add the calculated QC metrics to the Seurat object's metadata.
+  # ---------------------------------------------------------------------------
+  # 4. FINAL OUTPUT GENERATION.
+  # ---------------------------------------------------------------------------
   SeuratObject <- Seurat::AddMetaData(
     object = SeuratObject,
     metadata = new.metadata
   )
-
   return(SeuratObject)
-} # END OF FUNCTION.
+} # (END OF FUNCTION).
