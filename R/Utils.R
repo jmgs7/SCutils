@@ -1,66 +1,56 @@
 #' @title ExtractFeatureTestResults
 #'
 #' @description
-#' Retrieves and summarises the per-cell results produced by
-#' \code{.ComputeFeatureThresholdSeurat()} — which stores a computed threshold
-#' value and a logical pass/fail flag in \code{meta.data} — and collapses them
-#' into a tidy, batch-level \code{data.frame} that is easy to inspect, export,
-#' or use for downstream QC decisions.
+#' Retrieves and summarises per-cell feature-test results stored in
+#' \code{meta.data} and collapses them into a batch-level \code{data.frame}
+#' that is easy to inspect, export, or use for downstream QC decisions.
 #'
-#' The function looks for two columns in \code{meta.data} that follow the
-#' naming convention established by \code{.ComputeFeatureThresholdSeurat}:
-#' \itemize{
-#'   \item \code{<feature>.threshold} — the numeric threshold assigned to each
-#'     cell (constant within a batch).
-#'   \item \code{<feature>.pass} — a logical vector indicating whether the cell
-#'     passed (\code{TRUE}) or failed (\code{FALSE}) the threshold test.
-#' }
-#' It then groups cells by the user-supplied batch column, and for every batch
-#' returns: the shared threshold value, the total number of cells, the number
-#' of passing cells, and the pass rate (proportion of passing cells).
+#' The function expects at least the \code{<feature>.pass} column, and can
+#' optionally extract \code{<feature>.threshold} when available.
 #'
 #' @param SeuratObject A \code{\link[SeuratObject]{Seurat}} object whose
-#'   \code{meta.data} slot contains the columns produced by
-#'   \code{.ComputeFeatureThresholdSeurat()}.
+#'   \code{meta.data} slot contains the columns produced by feature-testing
+#'   workflows (for example \code{.CalculateFeatureThresholdSeurat()}).
 #' @param batch.col A single character string specifying the name of the
-#'   \code{meta.data} column that identifies the batches (e.g. sample IDs,
-#'   library IDs, or any grouping variable used when calling
-#'   \code{.ComputeFeatureThresholdSeurat()}).
+#'   \code{meta.data} column that identifies batches (e.g. sample IDs,
+#'   library IDs, or any grouping variable used in the upstream workflow).
 #' @param feature A single character string giving the name of the feature
 #'   (gene or metadata variable) whose test results should be extracted.
-#'   Defaults to \code{"MALAT1"}, which is a common QC marker for ambient
-#'   RNA contamination in single-cell experiments.
+#'   Defaults to \code{"MALAT1"}.
+#' @param extract.threshold Logical. If \code{TRUE}, include
+#'   \code{<feature>.threshold} in the output if that column exists.
+#'   If the threshold column is missing, the function warns and continues
+#'   with pass/fail summary only.
 #'
 #' @return A \code{data.frame} with one row per unique batch level, preserving
 #'   the order in which batches first appear in \code{meta.data}. Columns are:
 #'   \describe{
 #'     \item{\code{<batch.col>}}{Batch identifier (character or factor), named
 #'       after the input \code{batch.col} argument.}
-#'     \item{\code{<feature>.threshold}}{The numeric threshold value computed
-#'       for each batch by \code{.ComputeFeatureThresholdSeurat()}.}
 #'     \item{\code{nCells.total}}{Integer. Total number of cells belonging to
 #'       the batch.}
 #'     \item{\code{nCells.pass}}{Numeric. Number of cells that passed the
 #'       threshold test (\code{feature.pass == TRUE}).}
-#'     \item{\code{pass.rate}}{Numeric in \code{[0, 1]}. Proportion of cells
-#'       in the batch that passed the threshold test.}
+#'     \item{\code{pass.rate}}{Numeric in \code{[0, 1]} when at least one
+#'       non-missing pass value exists in the batch; \code{NA} otherwise.}
+#'     \item{\code{<feature>.threshold}}{The threshold value for the batch,
+#'       returned only when \code{extract.threshold = TRUE} and the threshold
+#'       column exists in \code{meta.data}.}
 #'   }
 #'   Row names are set to the batch identifiers for convenient subsetting.
 #'
 #' @details
-#' The function relies on \pkg{dplyr} for the grouping and summarisation step.
-#' \code{NA} values in the pass column are silently excluded from the counts
-#' and the pass-rate calculation (\code{na.rm = TRUE}); this mirrors the
-#' behaviour of \code{.ComputeFeatureThresholdSeurat()} when a threshold cannot
-#' be estimated for a cell.
+#' \code{NA} values in \code{<feature>.pass} are excluded from \code{nCells.pass}
+#' and \code{pass.rate}. If all pass values are \code{NA} in a batch,
+#' \code{pass.rate} is returned as \code{NA}.
 #'
 #' The row order of the returned \code{data.frame} matches the order in which
-#' batches first appear in \code{meta.data}, so it is consistent with the
-#' original sample ordering of the \code{SeuratObject}.
+#' batches first appear in \code{meta.data}.
 #'
 #' @seealso
-#' \code{.ComputeFeatureThresholdSeurat()} for the upstream function that
-#' populates the \code{meta.data} columns consumed here.
+#' \code{.CalculateFeatureThresholdSeurat()} for an upstream function that can
+#' populate \code{<feature>.threshold} and \code{<feature>.pass} in
+#' \code{meta.data}.
 #'
 #' @importFrom dplyr group_by summarise first n
 #'
@@ -82,117 +72,182 @@
 ExtractFeatureTestResults <- function(
   SeuratObject,
   batch.col,
-  feature = "MALAT1"
+  feature = "MALAT1",
+  extract.threshold = FALSE
 ) {
   # ---------------------------------------------------------------------------
-  # 1. Build the expected meta.data column names from the feature name.
-  #    .ComputeFeatureThresholdSeurat() always stores results under
-  #    "<feature>.threshold" and "<feature>.pass".
+  # 1. Validate user input and build expected meta.data column names.
   # ---------------------------------------------------------------------------
 
-  # Column that holds the numeric threshold assigned per batch.
-  threshold.col <- paste0(feature, ".threshold")
+  # Basic argument checks to fail early with informative messages.
+  if (!is.character(batch.col) || length(batch.col) != 1) {
+    stop("batch.col must be a single character string")
+  }
+  if (!is.character(feature) || length(feature) != 1) {
+    stop("feature must be a single character string")
+  }
+  if (!is.logical(extract.threshold) || length(extract.threshold) != 1) {
+    stop("extract.threshold must be a single logical value")
+  }
 
-  # Column that holds the logical pass/fail flag per cell.
+  # Build the expected metadata column names from the feature name.
+  threshold.col <- paste0(feature, ".threshold")
   pass.col <- paste0(feature, ".pass")
 
-  # Cache the column names of meta.data to avoid repeated @-slot access.
+  # Cache the meta.data column names to avoid repeated slot access.
   meta.data.cols <- colnames(SeuratObject@meta.data)
 
   # ---------------------------------------------------------------------------
-  # 2. Input validation — fail early with an informative error if any of the
-  #    three required columns is missing from meta.data.
+  # 2. Validate required metadata columns.
   # ---------------------------------------------------------------------------
 
-  # Check that the threshold column exists; stop if not found.
-  if (!threshold.col %in% meta.data.cols) {
-    stop(threshold.col, " column not found in meta.data")
-
-    # Check that the pass/fail column exists; stop if not found.
-  } else if (!pass.col %in% meta.data.cols) {
+  # The pass/fail result column must always exist.
+  if (!(pass.col %in% meta.data.cols)) {
     stop(pass.col, " column not found in meta.data")
+  }
 
-    # Check that the user-supplied batch column exists; stop if not found.
-  } else if (!batch.col %in% meta.data.cols) {
+  # The user-provided batch column must always exist.
+  if (!(batch.col %in% meta.data.cols)) {
     stop(batch.col, " column not found in meta.data")
   }
 
+  # Threshold extraction is optional; if missing, warn and continue.
+  if (extract.threshold && !(threshold.col %in% meta.data.cols)) {
+    warning(
+      threshold.col,
+      " column not found in meta.data, skipping extraction of threshold values"
+    )
+    extract.threshold <- FALSE
+  }
+
   # ---------------------------------------------------------------------------
-  # 3. Build a long (cell-level) data.frame with only the three columns needed.
-  #    Using [[...]] on meta.data preserves the vector class (numeric/logical)
-  #    and avoids creating an unnecessary copy of the entire meta.data slot.
+  # 3. Build a cell-level table and collapse to batch-level summary.
   # ---------------------------------------------------------------------------
 
   feature.test <- data.frame(
     # One row per cell: the batch identifier for that cell.
     batch = SeuratObject@meta.data[[batch.col]],
-    # The threshold value assigned to the cell's batch.
-    feature.threshold = SeuratObject@meta.data[[threshold.col]],
     # Whether the cell passed the threshold test.
     feature.pass = SeuratObject@meta.data[[pass.col]]
   ) |>
-
-    # ---------------------------------------------------------------------------
-    # 4. Collapse from cell level to batch level via dplyr.
-    # ---------------------------------------------------------------------------
 
     # Group all rows that belong to the same batch together.
     dplyr::group_by(batch) |>
 
     dplyr::summarise(
-      # The threshold is constant within a batch — take the first non-NA value.
-      feature.threshold = dplyr::first(feature.threshold),
-
       # Count total cells in the batch (including those with NA in pass col).
       nCells.total = dplyr::n(),
 
       # Count cells that explicitly passed (TRUE); NAs are excluded by na.rm.
       nCells.pass = sum(feature.pass, na.rm = TRUE),
 
-      # Compute the fraction of passing cells; NAs excluded from numerator
-      # and denominator via na.rm = TRUE.
-      pass.rate = mean(feature.pass, na.rm = TRUE),
+      # Compute pass rate on non-missing pass values; if all are missing,
+      # return NA instead of NaN for downstream safety.
+      pass.rate = if (all(is.na(feature.pass))) {
+        NA_real_
+      } else {
+        mean(feature.pass, na.rm = TRUE)
+      },
 
-      # Drop the grouping structure from the result to return a plain data.frame.
+      # Drop grouping structure and return a plain summary table.
       .groups = "drop"
     ) |>
-
-    # Convert the tibble returned by dplyr::summarise() to a base data.frame
-    # for compatibility with downstream code that may not expect a tibble.
     as.data.frame()
 
   # ---------------------------------------------------------------------------
-  # 5. Restore the original batch order.
-  #    dplyr::summarise() sorts batches alphabetically; here we re-index the
-  #    result using the order of first appearance in meta.data, which matches
-  #    the sample ordering of the SeuratObject.
+  # 4. Optionally extract batch-level threshold values.
   # ---------------------------------------------------------------------------
 
-  # Set batch names as row names to enable label-based subsetting in step below.
-  row.names(feature.test) <- feature.test$batch
+  if (extract.threshold) {
+    feature.threshold <- SeuratObject@meta.data |>
+      dplyr::select(
+        batch = dplyr::all_of(batch.col),
+        threshold = dplyr::all_of(threshold.col)
+      ) |>
+      dplyr::group_by(batch) |>
+      dplyr::summarise(
+        n.threshold = dplyr::n_distinct(threshold, na.rm = TRUE),
+        threshold = if (all(is.na(threshold))) {
+          NA_real_
+        } else {
+          dplyr::first(threshold[!is.na(threshold)])
+        },
+        .groups = "drop"
+      ) |>
+      as.data.frame()
 
-  # Reorder rows to match the first-appearance order of batches in meta.data.
-  feature.test <- feature.test[unique(SeuratObject@meta.data[[batch.col]]), ]
+    # Warn if more than one distinct threshold is found within a batch.
+    inconsistent.batch <- feature.threshold$batch[
+      feature.threshold$n.threshold > 1
+    ]
+    if (length(inconsistent.batch) > 0) {
+      warning(
+        "Multiple non-missing threshold values detected within batch(es): ",
+        paste(inconsistent.batch, collapse = ", "),
+        ". Using first non-missing threshold per batch."
+      )
+    }
+
+    feature.threshold$n.threshold <- NULL
+
+    # Attach threshold column while preserving all summary rows.
+    feature.test <- dplyr::left_join(
+      x = feature.test,
+      y = feature.threshold,
+      by = "batch"
+    )
+  }
 
   # ---------------------------------------------------------------------------
-  # 6. Rename columns to match the original meta.data naming conventions so
-  #    that the output is self-documenting and directly traceable back to the
-  #    Seurat object.
+  # 5. Restore original batch order and rename output columns.
   # ---------------------------------------------------------------------------
 
-  # Replace generic interim column names with the original meta.data names.
-  names(feature.test) <- c(
-    batch.col, # e.g. "orig.ident"
-    threshold.col, # e.g. "MALAT1.threshold"
-    "nCells.total",
-    "nCells.pass",
-    "pass.rate"
-  )
+  # Reorder rows to match first appearance of batch values in meta.data.
+  batch.order <- unique(SeuratObject@meta.data[[batch.col]])
+  feature.test <- feature.test[
+    match(batch.order, feature.test$batch),
+    ,
+    drop = FALSE
+  ]
+
+  # Replace generic interim column names with user-facing names.
+  if (extract.threshold) {
+    names(feature.test) <- c(
+      batch.col,
+      "nCells.total",
+      "nCells.pass",
+      "pass.rate",
+      threshold.col
+    )
+
+    # Reorder columns to keep threshold next to batch identifier.
+    feature.test <- feature.test[, c(
+      batch.col,
+      threshold.col,
+      "nCells.total",
+      "nCells.pass",
+      "pass.rate"
+    )]
+  } else {
+    names(feature.test) <- c(
+      batch.col,
+      "nCells.total",
+      "nCells.pass",
+      "pass.rate"
+    )
+  }
+
+  # Set stable row names for convenient label-based subsetting.
+  row.names(feature.test) <- make.unique(ifelse(
+    is.na(feature.test[[batch.col]]),
+    "NA",
+    as.character(feature.test[[batch.col]])
+  ))
 
   # ---------------------------------------------------------------------------
-  # 7. Return the tidy, batch-level summary data.frame.
+  # 6. Return tidy batch-level summary.
   # ---------------------------------------------------------------------------
-  return(feature.test)
+  return(as.data.frame(feature.test))
 }
 
 
@@ -528,190 +583,5 @@ ExtractFeatureTestResults <- function(
   }
 
   # Return the collapsed table with one boolean column per base metric.
-  return(data)
-}
-
-#' @title .collapse_value_columns
-#'
-#' @description
-#' Collapse repeated non-Boolean columns after multiple full_join() operations
-#'
-#' This helper is the value-oriented counterpart of
-#' \code{.collapse_boolean_columns()}.
-#'
-#' It identifies repeated column families generated by successive
-#' \code{dplyr::full_join()} calls (for example, \code{metric},
-#' \code{metric.x}, \code{metric.y}, \code{metric.x.y}), and collapses each
-#' repeated family into a single list-column.
-#'
-#' In contrast to \code{.collapse_boolean_columns()}, this function does not
-#' combine columns with the logical \code{&} operator. Instead, it creates a
-#' vector of values for each row using \code{c()} and stores that vector in a
-#' list-column.
-#'
-#' The function explicitly collapses only repeated families where all columns
-#' are non-logical. Families that are fully logical are skipped so that Boolean
-#' columns can be handled separately by \code{.collapse_boolean_columns()}.
-#'
-#' @param data
-#' A data frame (or compatible tabular object) resulting from one or more
-#' \code{dplyr::full_join()} operations.
-#'
-#' @return
-#' The same object as \code{data}, where each repeated non-Boolean family is
-#' reduced to one list-column named after the base column name. Each row of that
-#' list-column contains a vector with the values coming from the repeated
-#' columns in that row.
-#'
-#' @details
-#' Base names are computed by removing one-or-more trailing \code{.x}/\code{.y}
-#' suffix sequences.
-#'
-#' For example:
-#'
-#' \itemize{
-#'   \item \code{metric.x}   \eqn{\rightarrow} \code{metric}
-#'   \item \code{metric.y}   \eqn{\rightarrow} \code{metric}
-#'   \item \code{metric.x.y} \eqn{\rightarrow} \code{metric}
-#'   \item \code{metric}     \eqn{\rightarrow} \code{metric}
-#' }
-#'
-#' Only groups with more than one column are considered repeated families.
-#' Among those repeated families:
-#' \itemize{
-#'   \item If all columns are logical, the group is skipped.
-#'   \item If columns mix logical and non-logical types, the group is skipped
-#'   and a warning is emitted to avoid ambiguous coercion.
-#'   \item If all columns are non-logical, each row is collapsed with
-#'   \code{c()} into one vector.
-#' }
-#'
-#' @examples
-#' # Simulate two full_join()-derived value columns for the same metric.
-#' value_data <- tibble::tibble(
-#'   sample = c("S1", "S2"),
-#'   metric.x = c(10, 20),
-#'   metric.y = c(11, 21),
-#'   pass.x = c(TRUE, FALSE),
-#'   pass.y = c(TRUE, TRUE)
-#' )
-#'
-#' # Collapse only non-Boolean repeated families.
-#' collapsed <- value_data |>
-#'   .collapse_value_columns()
-#'
-#' # `metric` becomes a list-column:
-#' # row 1 -> c(10, 11)
-#' # row 2 -> c(20, 21)
-#' #
-#' # Boolean family (`pass.x`, `pass.y`) is left unchanged.
-#'
-#' @importFrom dplyr select any_of
-.collapse_value_columns <- function(data) {
-  # Capture original column names once to keep grouping deterministic.
-  column.names <- names(data)
-
-  # Compute the base name of each column by removing all trailing .x/.y suffixes.
-  #
-  # Examples handled by this pattern:
-  #   metric.x   -> metric
-  #   metric.y   -> metric
-  #   metric.x.y -> metric
-  #   metric     -> metric
-  base.names <- sub(
-    pattern = "(\\.x|\\.y)+$",
-    replacement = "",
-    x = column.names
-  )
-
-  # Group original column names by their base name.
-  #
-  # Each list element contains one full family of related columns generated by
-  # full_join() suffixing rules.
-  grouped.names <- split(
-    x = column.names,
-    f = base.names
-  )
-
-  # Keep only families that truly contain repeated columns.
-  #
-  # Single-column families do not require any collapsing.
-  repeated.groups <- grouped.names[
-    lengths(grouped.names) > 1L
-  ]
-
-  # Iterate over each repeated family independently.
-  for (base.name in names(repeated.groups)) {
-    # Retrieve the concrete column names belonging to this family.
-    repeated.names <- repeated.groups[[base.name]]
-
-    # Extract each repeated column as a vector.
-    repeated.columns <- lapply(
-      X = repeated.names,
-      FUN = function(column.name) data[[column.name]]
-    )
-
-    # Check whether each repeated column is logical (Boolean).
-    column.is.logical <- vapply(
-      X = repeated.columns,
-      FUN = is.logical,
-      FUN.VALUE = logical(length = 1L)
-    )
-
-    # Skip pure-Boolean families explicitly.
-    #
-    # This function is intentionally restricted to value columns.
-    if (all(column.is.logical)) {
-      next
-    }
-
-    # Skip mixed-type families (logical + non-logical) to avoid implicit
-    # coercion and ambiguous semantics.
-    if (any(column.is.logical) && !all(column.is.logical)) {
-      warning(
-        paste(
-          "Skipping mixed logical/non-logical family:",
-          base.name,
-          "(columns:",
-          paste(repeated.names, collapse = ", "),
-          ")"
-        )
-      )
-      next
-    }
-
-    # Collapse the repeated non-Boolean columns row-by-row.
-    #
-    # Map(c, col1, col2, ...) returns one vector per row:
-    #   row_i -> c(col1[i], col2[i], ...)
-    collapsed.values <- do.call(
-      what = Map,
-      args = c(
-        f = c,
-        repeated.columns
-      )
-    )
-
-    # Store collapsed vectors in a single list-column with the base name.
-    data[[base.name]] <- collapsed.values
-
-    # Identify suffixed versions to remove after successful collapse.
-    #
-    # The unsuffixed base column (if present) is retained and overwritten above.
-    suffixed.names <- repeated.names[
-      grepl(
-        pattern = "(\\.x|\\.y)+$",
-        x = repeated.names
-      )
-    ]
-
-    # Drop only auxiliary suffixed columns from the output object.
-    data <- dplyr::select(
-      .data = data,
-      -dplyr::any_of(suffixed.names)
-    )
-  }
-
-  # Return the data with non-Boolean repeated families collapsed.
   return(data)
 }
