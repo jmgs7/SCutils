@@ -7,6 +7,7 @@ export(CellsHistoGradient)
 export(ExtractFeatureTestResults)
 export(FeatureDensityPlot)
 export(FeatureScatterGradient)
+export(FeatureTest)
 export(QCMetricsBoxplot)
 export(VlnPlotGradient)
 export(scGSEAmarkers)
@@ -18,17 +19,30 @@ import(fgsea)
 import(ggplot2)
 import(patchwork)
 importFrom(data.table,rbindlist)
-importFrom(dplyr,first)
-importFrom(dplyr,group_by)
-importFrom(dplyr,n)
-importFrom(dplyr,summarise)
-importFrom(ggplot2,coord_cartesian)
-importFrom(ggplot2,ggplot_build)
+importFrom(dplyr,
+  any_of,
+  first,
+  full_join,
+  group_by,
+  n,
+  select,
+  summarise
+)
+importFrom(ggplot2,
+  coord_cartesian,
+  ggplot_build
+)
 importFrom(parallel,mclapply)
+importFrom(purrr,reduce)
 importFrom(rhdf5,h5read)
-importFrom(stats,cor)
-importFrom(stats,density)
-importFrom(stats,lm)
-importFrom(stats,poly)
-importFrom(stats,predict)
-importFrom(stats,smooth.spline)
+importFrom(stats,
+  cor,
+  density,
+  lm,
+  mad,
+  median,
+  poly,
+  predict,
+  quantile,
+  smooth.spline
+)

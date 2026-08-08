@@ -58,7 +58,7 @@
 #' @importFrom stats median mad quantile
 #' @importFrom dplyr full_join
 #' @importFrom purrr reduce
-#' @importFrom data.table rbindlist()
+#' @importFrom data.table rbindlist
 #' @export
 
 FeatureTest <- function(

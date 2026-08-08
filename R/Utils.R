@@ -470,6 +470,8 @@ ExtractFeatureTestResults <- function(
 #'
 #' @importFrom dplyr select any_of
 #' @importFrom purrr reduce
+#'
+#' @noRd
 
 .collapse_boolean_columns <- function(data) {
   # Capture original column names once so grouping logic is deterministic.

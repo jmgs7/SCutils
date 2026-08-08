@@ -2,11 +2,6 @@
 
 An R package providing single-cell RNA-seq utility functions to complement Seurat-based workflows.
 
-## Status and version
-
-- Current package version: **0.8.5-beta**
-- Status: **beta**; some features are still under development and may change in future releases. Please report any issues on GitHub.
-
 ## Installation
 
 ```r
@@ -335,13 +330,14 @@ results <- scGSEAmarkers(
 
 ### `ExtractFeatureTestResults()`
 
-Extracts the per-cell results of `.CalculateFeatureThresholdSeurat()` for a given feature from a Seurat object's metadata and returns a tidy `data.frame` with one row per unique batch level, including the computed threshold and pass/fail statistics.
+Extracts the per-cell results of `.CalculateFeatureThresholdSeurat()` for a given feature from a Seurat object's metadata and returns a tidy `data.frame` with one row per unique batch level, including the computed threshold (optional) and pass/fail statistics.
 
 ```r
 ExtractFeatureTestResults(
   SeuratObject,
   batch.col,
-  feature = "MALAT1"
+  feature = "MALAT1",
+  extract.threshold = TRUE
 )
 ```
 
@@ -350,7 +346,7 @@ ExtractFeatureTestResults(
 | `SeuratObject` | — | Seurat object containing `<feature>.threshold` and `<feature>.pass` columns in `meta.data` |
 | `batch.col` | — | Metadata column name identifying the batch variable |
 | `feature` | `"MALAT1"` | Feature name whose threshold results to extract |
-
+| `extract.threshold` | `FALSE` | If `TRUE`, includes the computed threshold value in the output; if `FALSE`, only pass/fail counts are returned (default) |
 
 ***
 
@@ -374,78 +370,8 @@ Converts ENSEMBL gene IDs to gene symbols for a raw count matrix using `biomaRt`
 
 Sets common x and y axis limits across a `patchwork` joined ggplot object. Used internally by `FeatureScatterGradient()` and `FeatureDensityPlot()` when `common.scales = TRUE`.
 
-***
-
-## Dependencies
-
-| Package | Source |
-| :-- | :-- |
-| Seurat | CRAN  |
-| SeuratObject | CRAN |
-| ggplot2 | CRAN |
-| dplyr | CRAN |
-| patchwork | CRAN |
-| fgsea | Bioconductor |
-| BiocParallel | Bioconductor |
-| tibble | CRAN |
-| scales | CRAN |
-| BPCells | GitHub (`bnprks/BPCells`) |
-| stats | base R |
-
-***
-
-## Changelog
-
-### 0.8.5-beta
-
-#### 🛠️ Bug fixes and improvements
-
-- `FeatureDensityPlot()` now sorts plots alphabetically by group as `FeatureScatterGradient()` does, ensuring consistent ordering of plots across different visualizations.
-- Now we apply coord_cartesian() instead of scale_x_continuous() and scale_y_continuous() in these functions to avoid issues with axis limits when using `common.scales = TRUE`. This change ensures that the axes are consistent across all plots without losing any data points or changing the density plot kernels.
-- We have updated the `percent.plat` metric calculation in `CalculateQC()`. Now it calculates the percentage of counts matching the following platelet-specific genes: `PPBP`, `PF4`, `GP9`, `ITGA2B`, `TUBB1`, `ITGB3`, and `GP1BA`. This addition allows for better identification of platelet contamination in single-cell RNA-seq data.
-
-### 0.8.4-beta
-
-- The `FeatureDensityPlot()` and `FeatureScatterGradient()`functions now set a common x and y axes scale by default. You can override this behavior by setting the `common.scales` argument to `FALSE`. This enhancement allows for better comparison of feature distributions across different groups or conditions, as it ensures that the scales are consistent and comparable. They also include a new argument `collect.axes` (default `FALSE`) to draw a unique x and y axis per plot when `split.plot = TRUE`. This provides users with more flexibility in visualizing their data, allowing for clearer interpretation of feature distributions and relationships across different groups or conditions.
-- Added support for mouse genome in `CalculateQC()` function. The function now accepts a `species` argument, which can be set to either `"human"` (default) or `"mouse"`. This allows users to perform quality control calculations on datasets from both human and mouse samples, ensuring that the appropriate gene sets are used for cell cycle scoring and other QC metrics.
-
-### 0.8.3 (beta)
-
-- The `FeatureDensityPlot()` and `FeatureScatterGradient()`functions now set a common x and y axes scale by default. You can override this behavior by setting the `common.scales` argument to `FALSE`. This enhancement allows for better comparison of feature distributions across different groups or conditions, as it ensures that the scales are consistent and comparable. They also include a new argument `collect.axes` (default `FALSE`) to draw a unique x and y axis per plot when `split.plot = TRUE`. This provides users with more flexibility in visualizing their data, allowing for clearer interpretation of feature distributions and relationships across different groups or conditions.
-- Added support for mouse genome in `CalculateQC()` function. The function now accepts a `species` argument, which can be set to either `"human"` (default) or `"mouse"`. This allows users to perform quality control calculations on datasets from both human and mouse samples, ensuring that the appropriate gene sets are used for cell cycle scoring and other QC metrics.
-
-### 0.8.2 (beta)
-
-- Introduced `QCMetricsBoxplot()` for grouped QC boxplots with gradient-colored jitter overlays.
-- Added `...` forwarding in `CalculateQC()` to pass custom arguments to the internal `.CalculateFeatureThresholdSeurat()`.
-- Added `ExtractFeatureTestResults()` (Utils module) to retrieve and summarize per-cell MALAT1 threshold test results.
-- Enhanced `FeatureDensityPlot()` to accept a vector of `vline` values per group when plotting a single feature with `split.plot = TRUE`.
-- Refactored `.ComputeFeatureThreshold()` and `.CalculateFeatureThresholdSeurat()` as documented internal helpers.
-
-### 0.8.1
-
-- Uncluttered namespace conflicts between `dplyr` and `stats`.
-
-### 0.8.0
-
-- `CalculateQC()` now computes `nCount_logRNA` and `nFeature_logRNA` from normalized counts.
-- Added cell cycle scoring support to `CalculateQC()`.
-- Added MALAT1-based QC thresholding to `CalculateQC()`, producing `MALAT1.threshold` and `MALAT1.pass` metadata columns.
-- Fixed layer-related bugs in plotting functions.
-
-### 0.7.1
-
-- Hardened `FeatureScatterGradient()` argument validation and single-layer handling, treating `""` and `"null"` as omitted layers and enforcing numeric gradient limit ordering when both bounds are specified.
-- Improved grouped `FeatureScatterGradient()` behaviour: NA grouping values are excluded, per-group correlations appear as subtitles, and a single global viridis gradient scale with shared legend is assembled via `patchwork::plot_layout(guides = "collect")`.
-- Updated `FeatureDensityPlot()` to use `group.by = "ident"` by default for direct `FetchData()` compatibility; output names cleaned up to use `feature_layer` for assay-backed features and bare feature names for metadata-backed features.
-- Enhanced `VlnPlotGradient()` to support per-feature custom plot titles via `plot.title` while maintaining `feature_layer` naming for assay-backed features when a layer is specified.
-- Fixed several plotting edge cases: handling NAs and empty strings in all layer options as `NULL`, avoiding errors when using default grouping by identity, and eliminating duplicate legends in grouped gradient plots.
-
-### 0.7.0 (beta)
-
-- Roxygenized the package and aligned documentation for the main plotting utilities and QC helpers.
-- Introduced the gradient-based visualization suite (`FeatureScatterGradient`, `FeatureDensityPlot`, `VlnPlotGradient`, `QCMetricsBoxplot`) with consistent viridis-based palettes and Seurat-compatible semantics.
-
+### `.collapse_boolean_columns()`
+Collapses multiple boolean columns into a single logical column, returning `TRUE` if all of the input columns are `TRUE` for a given row, and `FALSE` if any is `FALSE`. Used internally by `FeatureTest()`
 
 ***
 

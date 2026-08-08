@@ -4,22 +4,30 @@
 \alias{ExtractFeatureTestResults}
 \title{ExtractFeatureTestResults}
 \usage{
-ExtractFeatureTestResults(SeuratObject, batch.col, feature = "MALAT1")
+ExtractFeatureTestResults(
+  SeuratObject,
+  batch.col,
+  feature = "MALAT1",
+  extract.threshold = FALSE
+)
 }
 \arguments{
 \item{SeuratObject}{A \code{\link[SeuratObject]{Seurat}} object whose
-\code{meta.data} slot contains the columns produced by
-\code{.ComputeFeatureThresholdSeurat()}.}
+\code{meta.data} slot contains the columns produced by feature-testing
+workflows (for example \code{.CalculateFeatureThresholdSeurat()}).}
 
 \item{batch.col}{A single character string specifying the name of the
-\code{meta.data} column that identifies the batches (e.g. sample IDs,
-library IDs, or any grouping variable used when calling
-\code{.ComputeFeatureThresholdSeurat()}).}
+\code{meta.data} column that identifies batches (e.g. sample IDs,
+library IDs, or any grouping variable used in the upstream workflow).}
 
 \item{feature}{A single character string giving the name of the feature
 (gene or metadata variable) whose test results should be extracted.
-Defaults to \code{"MALAT1"}, which is a common QC marker for ambient
-RNA contamination in single-cell experiments.}
+Defaults to \code{"MALAT1"}.}
+
+\item{extract.threshold}{Logical. If \code{TRUE}, include
+\code{<feature>.threshold} in the output if that column exists.
+If the threshold column is missing, the function warns and continues
+with pass/fail summary only.}
 }
 \value{
 A \code{data.frame} with one row per unique batch level, preserving
@@ -27,46 +35,33 @@ A \code{data.frame} with one row per unique batch level, preserving
   \describe{
     \item{\code{<batch.col>}}{Batch identifier (character or factor), named
       after the input \code{batch.col} argument.}
-    \item{\code{<feature>.threshold}}{The numeric threshold value computed
-      for each batch by \code{.ComputeFeatureThresholdSeurat()}.}
     \item{\code{nCells.total}}{Integer. Total number of cells belonging to
       the batch.}
     \item{\code{nCells.pass}}{Numeric. Number of cells that passed the
       threshold test (\code{feature.pass == TRUE}).}
-    \item{\code{pass.rate}}{Numeric in \code{[0, 1]}. Proportion of cells
-      in the batch that passed the threshold test.}
+    \item{\code{pass.rate}}{Numeric in \code{[0, 1]} when at least one
+      non-missing pass value exists in the batch; \code{NA} otherwise.}
+    \item{\code{<feature>.threshold}}{The threshold value for the batch,
+      returned only when \code{extract.threshold = TRUE} and the threshold
+      column exists in \code{meta.data}.}
   }
   Row names are set to the batch identifiers for convenient subsetting.
 }
 \description{
-Retrieves and summarises the per-cell results produced by
-\code{.ComputeFeatureThresholdSeurat()} — which stores a computed threshold
-value and a logical pass/fail flag in \code{meta.data} — and collapses them
-into a tidy, batch-level \code{data.frame} that is easy to inspect, export,
-or use for downstream QC decisions.
+Retrieves and summarises per-cell feature-test results stored in
+\code{meta.data} and collapses them into a batch-level \code{data.frame}
+that is easy to inspect, export, or use for downstream QC decisions.
 
-The function looks for two columns in \code{meta.data} that follow the
-naming convention established by \code{.ComputeFeatureThresholdSeurat}:
-\itemize{
-  \item \code{<feature>.threshold} — the numeric threshold assigned to each
-    cell (constant within a batch).
-  \item \code{<feature>.pass} — a logical vector indicating whether the cell
-    passed (\code{TRUE}) or failed (\code{FALSE}) the threshold test.
-}
-It then groups cells by the user-supplied batch column, and for every batch
-returns: the shared threshold value, the total number of cells, the number
-of passing cells, and the pass rate (proportion of passing cells).
+The function expects at least the \code{<feature>.pass} column, and can
+optionally extract \code{<feature>.threshold} when available.
 }
 \details{
-The function relies on \pkg{dplyr} for the grouping and summarisation step.
-\code{NA} values in the pass column are silently excluded from the counts
-and the pass-rate calculation (\code{na.rm = TRUE}); this mirrors the
-behaviour of \code{.ComputeFeatureThresholdSeurat()} when a threshold cannot
-be estimated for a cell.
+\code{NA} values in \code{<feature>.pass} are excluded from \code{nCells.pass}
+and \code{pass.rate}. If all pass values are \code{NA} in a batch,
+\code{pass.rate} is returned as \code{NA}.
 
 The row order of the returned \code{data.frame} matches the order in which
-batches first appear in \code{meta.data}, so it is consistent with the
-original sample ordering of the \code{SeuratObject}.
+batches first appear in \code{meta.data}.
 }
 \examples{
 \dontrun{
@@ -84,6 +79,7 @@ print(results)
 
 }
 \seealso{
-\code{.ComputeFeatureThresholdSeurat()} for the upstream function that
-populates the \code{meta.data} columns consumed here.
+\code{.CalculateFeatureThresholdSeurat()} for an upstream function that can
+populate \code{<feature>.threshold} and \code{<feature>.pass} in
+\code{meta.data}.
 }
