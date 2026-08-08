@@ -1,4 +1,4 @@
-#' @title .ComputeFeatureThresholdSeurat
+#' @title .CalculateFeatureThresholdSeurat
 #'
 #' @description
 #' Computes an automatic threshold on normalized feature expression to separate low-quality

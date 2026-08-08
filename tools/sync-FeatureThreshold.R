@@ -9,16 +9,16 @@ vendor.root <- file.path(project.root, "vendor", "feature_threshold")
 target.root <- file.path(project.root, "R")
 
 # Define the source -> target file mapping explicitly.
-# Left side: file in the MALAT1 repo.
+# Left side: file in the feature_threshold repo.
 # Right side: destination file in SCutils/R/.
 
 source.files <- c(
   file.path(vendor.root, "R", "ComputeFeatureThreshold.R"),
-  file.path(vendor.root, "R", "ComputeFeatureThresholdSeurat.R")
+  file.path(vendor.root, "R", "CalculateFeatureThresholdSeurat.R")
 )
 file.map <- c(
   file.path(target.root, "ComputeFeatureThreshold.R"),
-  file.path(target.root, "ComputeFeatureThresholdSeurat.R")
+  file.path(target.root, "CalculateFeatureThresholdSeurat.R")
 )
 names(file.map) <- source.files
 
@@ -37,7 +37,7 @@ missing.files <- source.files[!file.exists(source.files)]
 
 if (length(missing.files) > 0L) {
   stop(
-    "The following source files are missing in the MALAT1 repository:\n- ",
+    "The following source files are missing in the feature_threshold repository:\n- ",
     paste(missing.files, collapse = "\n- ")
   )
 }
@@ -80,7 +80,7 @@ if (!all(copy.ok)) {
 }
 
 # Print a compact summary for the terminal/log.
-message("Synced MALAT1 files into SCutils:")
+message("Synced feature_threshold files into SCutils:")
 for (i in seq_along(file.map)) {
   message("- ", names(file.map)[[i]], " -> ", unname(file.map)[[i]])
 }
