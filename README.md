@@ -13,7 +13,7 @@ remotes::install_github("jmgs7/SCutils")
 
 ### `BatchOpenH5()`
 
-Batch-opens `.h5` single-cell matrices, writes/loads BPCells matrix directories (`*_BP`), supports both 10X and AnnData HDF5 inputs, and can optionally convert ENSEMBL IDs to gene symbols; it can also generate per-cell sample provenance metadata. Processing uses `parallel::mclapply()` (on Windows, cores are forced to 1).
+Batch-opens `.h5` single-cell matrices, writes/loads BPCells matrix directories (`*_BP`), supports both 10X and AnnData HDF5 inputs, and can optionally convert ENSEMBL IDs to gene symbols; it can also generate per-cell sample provenance metadata. Multiprocessing is supported via `future` framework. Future options must be set in the global environment before calling `BatchOpenH5()`.
 
 ```r
 BatchOpenH5(
@@ -24,8 +24,7 @@ BatchOpenH5(
   use.names = TRUE,
   ensembl.to.symbol = FALSE,
   species = "human",
-  generate.metadata = FALSE,
-  mc.cores = length(files)
+  generate.metadata = FALSE
 )
 ```
 
@@ -39,7 +38,6 @@ BatchOpenH5(
 | `ensembl.to.symbol` | `FALSE` | Convert ENSEMBL IDs to symbols via `ConvertEnsembleToSymbol2()` (applied only when `use.names = FALSE`) |
 | `species` | `"human"` | Species passed to symbol conversion: `"human"` or `"mouse"` |
 | `generate.metadata` | `FALSE` | If `TRUE`, returns a named list with `data.list` plus per-cell metadata (`cell.tag`, `sample.procedence`) |
-| `mc.cores` | `length(files)` | Cores used by `mclapply()`; forced to `1` on Windows |
 
 ***
 

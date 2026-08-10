@@ -12,8 +12,7 @@ BatchOpenH5(
   use.names = TRUE,
   ensembl.to.symbol = FALSE,
   species = "human",
-  generate.metadata = FALSE,
-  mc.cores = length(files)
+  generate.metadata = FALSE
 )
 }
 \arguments{
@@ -42,9 +41,6 @@ Default is `"human"`.}
 
 \item{generate.metadata}{Logical; if `TRUE`, also returns a per-cell metadata
 table with `cell.tag` and `sample.procedence`. Default is `FALSE`.}
-
-\item{mc.cores}{Integer number of cores for `mclapply()`. Default is
-`length(files)` (or 1 on Windows).}
 }
 \value{
 If `generate.metadata = FALSE`, a named list of BPCells matrices. Names
@@ -68,7 +64,13 @@ For each file in `files`, this function:
   when `ensembl.to.symbol = TRUE` and `use.names = FALSE`.
 }
 \details{
-Processing uses `parallel::mclapply()`. On Windows, `mc.cores` is forced to 1.
+Processing uses is parallelize using the future() framework. Future options
+must be set in the global environment before calling this function. For example, to use 4 cores:
+
+\dontrun{
+library(future)
+plan(multisession, workers = 4)
+}
 }
 \examples{
 \dontrun{

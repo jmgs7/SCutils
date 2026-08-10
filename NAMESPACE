@@ -16,6 +16,7 @@ import(Seurat)
 import(SeuratObject)
 import(dplyr)
 import(fgsea)
+import(futurize)
 import(ggplot2)
 import(patchwork)
 importFrom(data.table,rbindlist)
@@ -32,7 +33,6 @@ importFrom(ggplot2,
   coord_cartesian,
   ggplot_build
 )
-importFrom(parallel,mclapply)
 importFrom(purrr,reduce)
 importFrom(rhdf5,h5read)
 importFrom(stats,
