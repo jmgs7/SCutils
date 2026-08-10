@@ -13,7 +13,13 @@
 #' - optionally converts ENSEMBL IDs to symbols with `ConvertEnsembleToSymbol2()`
 #'   when `ensembl.to.symbol = TRUE` and `use.names = FALSE`.
 #'
-#' Processing uses `parallel::mclapply()`. On Windows, `mc.cores` is forced to 1.
+#' Processing uses is parallelize using the future() framework. Future options
+#' must be set in the global environment before calling this function. For example, to use 4 cores:
+#'
+#' \dontrun{
+#' library(future)
+#' plan(multisession, workers = 4)
+#' }
 #'
 #' @param files Character vector of input `.h5` file paths.
 #' @param relative Logical; if `TRUE`, store matrix directory paths as
@@ -33,8 +39,6 @@
 #'   Default is `"human"`.
 #' @param generate.metadata Logical; if `TRUE`, also returns a per-cell metadata
 #'   table with `cell.tag` and `sample.procedence`. Default is `FALSE`.
-#' @param mc.cores Integer number of cores for `mclapply()`. Default is
-#'   `length(files)` (or 1 on Windows).
 #'
 #' @return If `generate.metadata = FALSE`, a named list of BPCells matrices. Names
 #'   are derived from input basenames without `.h5*` suffix.
@@ -57,9 +61,9 @@
 #' )
 #' }
 #'
-#' @importFrom parallel mclapply
 #' @importFrom rhdf5 h5read
 #' @import BPCells
+#' @import futurize
 #' @export
 
 BatchOpenH5 <- function(
@@ -70,17 +74,11 @@ BatchOpenH5 <- function(
   use.names = TRUE,
   ensembl.to.symbol = FALSE,
   species = "human",
-  generate.metadata = FALSE,
-  mc.cores = length(files)
+  generate.metadata = FALSE
 ) {
   # Use the directory of the first file if BP.data.dir is not provided
   if (is.null(BP.data.dir)) {
     BP.data.dir <- dirname(files[[1]])
-  }
-
-  # Windows does not allow parallel processing with mclapply, so we set mc.cores to 1
-  if (.Platform$OS.type == "windows") {
-    mc.cores <- 1
   }
 
   # Internal function to process a single file which will be parallelized with mclapply
@@ -154,7 +152,7 @@ BatchOpenH5 <- function(
   }
 
   # Multicore processing of files with mclapply. On Windows, this will run sequentially due to mc.cores being set to 1.
-  data.list <- parallel::mclapply(
+  data.list <- lapply(
     files,
     process_one_file,
     BP.data.dir = BP.data.dir,
@@ -162,15 +160,15 @@ BatchOpenH5 <- function(
     platform = platform,
     use.names = use.names,
     ensembl.to.symbol = ensembl.to.symbol,
-    species = species,
-    mc.cores = mc.cores
-  )
+    species = species
+  ) |>
+    futurize::futurize()
   # Set the names of the list to the base names of the files without the .h5* extension
   names(data.list) <- gsub(".h5*", "", basename(files))
 
   # Generate simple metadata indicating the procedence of the sample if requested.
   if (generate.metadata) {
-    meta.list <- parallel::mclapply(
+    meta.list <- lapply(
       names(data.list),
       function(sample) {
         cells <- colnames(data.list[[sample]])
@@ -180,9 +178,9 @@ BatchOpenH5 <- function(
           row.names = cells,
           stringsAsFactors = FALSE
         )
-      },
-      mc.cores = mc.cores
-    )
+      }
+    ) |>
+      futurize::futurize()
 
     metadata <- Reduce(rbind, meta.list)
     output <- list(data.list = data.list, metadata = metadata)
