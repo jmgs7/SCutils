@@ -587,3 +587,170 @@ ExtractFeatureTestResults <- function(
   # Return the collapsed table with one boolean column per base metric.
   return(data)
 }
+
+
+#' @title FilterVariableFeatures
+#'
+#' @description
+#' Filters the variable features of a Seurat object to remove TCR/BCR and IG genes,
+#' mitochondrial and reibosomal genes, and non-coding and antisense genes.
+#'
+#' @param SeuratObject A Seurat object containing variable features.
+#' @param pattern A character vector of regular expression patterns to filter variable features.
+#'   If NULL, default patterns will be used to remove TCR/BCR and IG genes,
+#'   HLA genes, mitochondrial and ribosomal genes, and non-coding and antisense genes.
+#' @param verbose Logical. If TRUE, prints the number of features removed and remaining.
+#' @return A Seurat object with filtered variable features.
+#'
+#' @import Seurat
+#' @import SeuratObject
+#'
+#' @export
+FilterVariableFeatures <- function(
+  SeuratObject,
+  pattern = NULL,
+  verbose = TRUE
+) {
+  # VALIDATE INPUTS
+  if (!inherits(SeuratObject, "Seurat")) {
+    stop("SeuratObject must be a Seurat object.")
+  }
+  if (!is.character(pattern) && !is.null(pattern)) {
+    stop(
+      "Pattern must be a character vector or NULL."
+    )
+  }
+  if (!is.logical(verbose) || length(verbose) != 1) {
+    stop("Verbose must be a single logical value.")
+  }
+
+  # Get the variable features
+  hvg <- Seurat::VariableFeatures(SeuratObject)
+
+  if (is.null(pattern)) {
+    # Otherwise, use the default patterns to remove
+    # Define patterns for genes to remove
+    pattern <- c(
+      "^TR[ABDG][VDJ]", # TCR genes
+      "^IG[HKL][VDJ]", # BCR/IG genes
+      "^HLA-", # HLA genes (avoids multi-donor issues)
+      "^MT-", # Mitochondrial genes
+      "^RP[LS]", # Ribosomal protein genes
+      "^MRP[LS]", # Mitochondrial ribosomal protein genes
+      "^LINC", # Long intergenic non-coding RNAs
+      "^LOC", # Eliminate LOC genes (uncharacterized)
+      "\\.[0-9]+$", # Antisense and versioned genes
+      "-DT$", # Divergent transcripts
+      "-AS[0-9]*$" # Antisense transcripts
+    )
+  }
+
+  # Filter the variable features based on the patterns
+  for (regexp in pattern) {
+    hvg <- grep(regexp, hvg, invert = TRUE, value = TRUE)
+  }
+
+  # Update the Seurat object with the filtered variable features
+  Seurat::VariableFeatures(SeuratObject) <- hvg
+
+  if (verbose) {
+    message("Filtered variable features. Remaining features: ", length(hvg))
+  }
+
+  return(SeuratObject)
+}
+
+#' @title SelectPCs
+#'
+#' @description Select the number of principal components to use for downstream analysis.
+#' The function uses the intrinsicDimension::maxLikGlobalDimEst to estimate the intrinsic
+#' dimensionality of the PCA embeddings in the Seurat object. It handles large datasets by chunking
+#' the data to avoid memory issues and overflow errors. If the intrinsic dimension cannot be
+#' estimated, it falls back to a pointwise estimation method and takes the median of the valid
+#' estimates as a robust global estimate.
+#'
+#' @param SeuratObject A Seurat object.
+#'
+#' @return Numerical A vector of selected principal components.
+#'
+#' @import Seurat
+#' @import SeuratObject
+#' @imporFrom intrinsicDimension maxLikGlobalDimEst maxLikPointwiseDimEst
+#' @import
+#' @export
+#'
+SelectPCs <- function(SeuratObject, seed = 42L) {
+  # VALIDATE INPUTS
+  if (!inherits(SeuratObject, "Seurat")) {
+    stop("SeuratObject must be a Seurat object.")
+  }
+  if (!is.integer(seed) || seed < 0 || seed > .Machine$integer.max) {
+    stop(
+      "Seed must be a non-negative integer within the range of valid integers. Max value is ",
+      .Machine$integer.max,
+      "."
+    )
+  }
+
+  # Set the random seed for reproducibility
+  set.seed(seed)
+
+  # Obtain the PCA embeddings from the Seurat object
+  PCs <- SeuratObject@reductions$pca@cell.embeddings
+  # Get the number of cells
+  n.PCs <- nrow(PCs)
+
+  # For large datasets, chunk the data to avoid memory issues and overflow errors.
+  if (n.PCs >= 100000) {
+    # Split the data into 10 chunks for processing
+    chunks <- split(sample(1:n.PCs), rep(1:10, length.out = n.PCs))
+    # Estimate the intrinsic dimensions for each chunk and store the results
+    dim.estimates <- sapply(chunks, function(idx) {
+      intrinsicDimension::maxLikGlobalDimEst(
+        PCs[idx, ],
+        k = 20,
+        unbiased = TRUE,
+        neighborhood.aggregation = "robust"
+      )
+    })
+    # Print the average and maximum intrinsic dimensions across all chunks
+    print(paste0("Average dimensions: ", mean(unlist(dim.estimates))))
+    print(paste0("Max dimensions: ", max(unlist(dim.estimates))))
+    # We consider the maximum intrinsic dimension across all chunks as the final estimate
+    est.PC <- round(max(unlist(dim.estimates)))
+
+    # For smaller datasets, we can directly estimate the intrinsic dimensions without chunking.
+  } else if (n.PCs < 100000) {
+    int.dim <- intrinsicDimension::maxLikGlobalDimEst(
+      SeuratObject@reductions$pca@cell.embeddings,
+      k = 20,
+      unbiased = TRUE,
+      neighborhood.aggregation = 'robust'
+    ) # this is teh best but crashes when run on the full dataset
+    est.PC <- round(int.dim[[1]])
+    print(paste0("Instrinsic dimensions: ", est.PC))
+  }
+
+  # If it is still NA, fallback to the pointwise estimation method, and take the median of the valid estimates as a robust global estimate.
+  if (exists("est.PC") == FALSE) {
+    message("Using alternative approach to estimate intrinsic dimensions")
+    X <- SeuratObject@reductions$pca@cell.embeddings
+    pt <- intrinsicDimension::maxLikPointwiseDimEst(X, k = 20, unbiased = TRUE)
+    m <- pt$dim.est
+    m2 <- m[is.finite(m) & m > 0] # keep only finite positive estimates
+    int.dim <- median(m2) # robust global estimate = median of valid ones
+    est.PC <- round(int.dim[[1]])
+  }
+
+  return(1:est.PC)
+}
+
+#' @title EstimateResolution
+#'
+#' @description
+#' Estimates the resolution parameter for clustering based on the stability of the clusters.
+#'
+#'
+#'
+
+## TODO: Implement function.
