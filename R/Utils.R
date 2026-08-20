@@ -599,6 +599,8 @@ ExtractFeatureTestResults <- function(
 #' @param pattern A character vector of regular expression patterns to filter variable features.
 #'   If NULL, default patterns will be used to remove TCR/BCR and IG genes,
 #'   HLA genes, mitochondrial and ribosomal genes, and non-coding and antisense genes.
+#' @param assay The assay to filter variable features from. Defaults to "RNA".
+#' @param method The method used to identify variable features. Defaults to "vst".
 #' @param verbose Logical. If TRUE, prints the number of features removed and remaining.
 #' @return A Seurat object with filtered variable features.
 #'
@@ -609,6 +611,8 @@ ExtractFeatureTestResults <- function(
 FilterVariableFeatures <- function(
   SeuratObject,
   pattern = NULL,
+  assay = "RNA",
+  method = "vst",
   verbose = TRUE
 ) {
   # VALIDATE INPUTS
@@ -622,6 +626,12 @@ FilterVariableFeatures <- function(
   }
   if (!is.logical(verbose) || length(verbose) != 1) {
     stop("Verbose must be a single logical value.")
+  }
+  if (!assay %in% names(SeuratObject@assays)) {
+    stop("Assay '", assay, "' not found in Seurat object.")
+  }
+  if (!method %in% c("vst", "mean.var.plot", "dispersion")) {
+    stop("Method must be one of 'vst', 'mean.var.plot', or 'dispersion'.")
   }
 
   # Get the variable features
@@ -714,8 +724,8 @@ SelectPCs <- function(SeuratObject, seed = 42L) {
       )
     })
     # Print the average and maximum intrinsic dimensions across all chunks
-    print(paste0("Average dimensions: ", mean(unlist(dim.estimates))))
-    print(paste0("Max dimensions: ", max(unlist(dim.estimates))))
+    message(paste0("Average dimensions: ", mean(unlist(dim.estimates))))
+    message(paste0("Max dimensions: ", max(unlist(dim.estimates))))
     # We consider the maximum intrinsic dimension across all chunks as the final estimate
     est.PC <- round(max(unlist(dim.estimates)))
 
@@ -728,12 +738,12 @@ SelectPCs <- function(SeuratObject, seed = 42L) {
       neighborhood.aggregation = 'robust'
     ) # this is teh best but crashes when run on the full dataset
     est.PC <- round(int.dim[[1]])
-    print(paste0("Instrinsic dimensions: ", est.PC))
+    message(paste0("Instrinsic dimensions: ", est.PC))
   }
 
   # If it is still NA, fallback to the pointwise estimation method, and take the median of the valid estimates as a robust global estimate.
   if (exists("est.PC") == FALSE) {
-    message("Using alternative approach to estimate intrinsic dimensions")
+    warning("Using alternative approach to estimate intrinsic dimensions")
     X <- SeuratObject@reductions$pca@cell.embeddings
     pt <- intrinsicDimension::maxLikPointwiseDimEst(X, k = 20, unbiased = TRUE)
     m <- pt$dim.est
@@ -744,13 +754,3 @@ SelectPCs <- function(SeuratObject, seed = 42L) {
 
   return(1:est.PC)
 }
-
-#' @title EstimateResolution
-#'
-#' @description
-#' Estimates the resolution parameter for clustering based on the stability of the clusters.
-#'
-#'
-#'
-
-## TODO: Implement function.
