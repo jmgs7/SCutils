@@ -600,7 +600,6 @@ ExtractFeatureTestResults <- function(
 #'   If NULL, default patterns will be used to remove TCR/BCR and IG genes,
 #'   HLA genes, mitochondrial and ribosomal genes, and non-coding and antisense genes.
 #' @param assay The assay to filter variable features from. Defaults to "RNA".
-#' @param method The method used to identify variable features. Defaults to "vst".
 #' @param verbose Logical. If TRUE, prints the number of features removed and remaining.
 #' @return A Seurat object with filtered variable features.
 #'
@@ -612,7 +611,6 @@ FilterVariableFeatures <- function(
   SeuratObject,
   pattern = NULL,
   assay = "RNA",
-  method = "vst",
   verbose = TRUE
 ) {
   # VALIDATE INPUTS
@@ -630,9 +628,6 @@ FilterVariableFeatures <- function(
   if (!assay %in% names(SeuratObject@assays)) {
     stop("Assay '", assay, "' not found in Seurat object.")
   }
-  if (!method %in% c("vst", "mean.var.plot", "dispersion")) {
-    stop("Method must be one of 'vst', 'mean.var.plot', or 'dispersion'.")
-  }
 
   # Get the variable features
   hvg <- Seurat::VariableFeatures(SeuratObject)
@@ -649,7 +644,7 @@ FilterVariableFeatures <- function(
       "^MRP[LS]", # Mitochondrial ribosomal protein genes
       "^LINC", # Long intergenic non-coding RNAs
       "^LOC", # Eliminate LOC genes (uncharacterized)
-      "\\.[0-9]+$", # Antisense and versioned genes
+      "\\.[0-9]+$", # Versioned genes
       "-DT$", # Divergent transcripts
       "-AS[0-9]*$" # Antisense transcripts
     )
