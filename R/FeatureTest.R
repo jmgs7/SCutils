@@ -81,11 +81,14 @@ FeatureTest <- function(
   }
 
   # Validate assay: must be a character string and exist in the Seurat object.
-  if (
-    !is.character(assay) ||
-      length(assay) != 1 ||
-      !(assay %in% names(SeuratObject@assays))
-  ) {
+  if (!is.null(assay) && (!is.character(assay) || length(assay) != 1)) {
+    stop(
+      "Invalid assay provided. Please provide a single assay name as a character string or NULL."
+    )
+  } else {
+    assay <- assay %||% Seurat::DefaultAssay(SeuratObject)
+  }
+  if (!(assay %in% names(SeuratObject@assays))) {
     stop(
       "'assay' must be a single character string corresponding to an existing assay in the Seurat object."
     )

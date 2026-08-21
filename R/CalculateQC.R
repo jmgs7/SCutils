@@ -29,7 +29,8 @@
 #'
 #' @param SeuratObject A Seurat object. The function reads counts from the active assay and adds metadata columns.
 #'   Patterns are interpreted as regular expressions by Seurat::PercentageFeatureSet.
-#' @param assay Default: "RNA". The assay in SeuratObject to use for QC calculations.
+#' @param assay Default: "NULL". The assay in SeuratObject to use for QC calculations.
+#'   If not specified, the default assay will be used.
 #' @param layers Default: `NULL`. If normalization has been applied to the SeuratObject, you can provide
 #'   the layers where the data is stored. If NULL, the function will attempt to find all log-normalized data layers
 #'   in the Seurat object. If not found, the function will skip log-normalized QC calculations.
@@ -69,7 +70,7 @@
 #' @export
 CalculateQC <- function(
   SeuratObject,
-  assay = "RNA",
+  assay = NULL,
   layers = NULL,
   species = "human",
   perform.cell.cycle.scoring = TRUE,
@@ -81,9 +82,16 @@ CalculateQC <- function(
     stop("'SeuratObject' must be a Seurat object.")
   }
 
-  if (!is.character(assay) || length(assay) != 1) {
+  if (!is.null(assay) && (!is.character(assay) || length(assay) != 1)) {
     stop(
-      "Invalid assay provided. Please provide a single assay name as a character string."
+      "Invalid assay provided. Please provide a single assay name as a character string or NULL."
+    )
+  } else {
+    assay <- assay %||% Seurat::DefaultAssay(SeuratObject)
+  }
+  if (!(assay %in% names(SeuratObject@assays))) {
+    stop(
+      "'assay' must be a single character string corresponding to an existing assay in the Seurat object."
     )
   }
 

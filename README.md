@@ -9,6 +9,13 @@ An R package providing single-cell RNA-seq utility functions to complement Seura
 remotes::install_github("jmgs7/SCutils")
 ```
 
+**or**
+
+```r
+# install.packages("pak")
+pak::pak("jmgs7/SCutils")
+```
+
 ## Functions
 
 ### `BatchOpenH5()`
@@ -85,7 +92,7 @@ The function supports split Seurat v5 objects: if normalized counts are stored i
 ```r
 SeuratObject <- CalculateQC(
   SeuratObject,
-  assay = "RNA",
+  assay = NULL,
   layers = NULL,
   species = "human" , # Also 'mouse' available
   perform.cell.cycle.scoring = TRUE,
@@ -96,7 +103,7 @@ SeuratObject <- CalculateQC(
 | Parameter | Default | Description |
 | :-- | :-- | :-- |
 | `SeuratObject` | — | Seurat object to annotate |
-| `assay` | `"RNA"` | Assay to read counts from |
+| `assay` | `NULL` | Assay to read counts from; if `NULL`, the default assay is used |
 | `layers` | `NULL` | Normalized layer(s) to use; `NULL` uses the default `data` layer; a character vector processes each layer independently |
 | `species` | `"human"` | Species of the dataset, used to select the appropriate gene sets for cell cycle scoring. Human and Mouse currently supported. |
 | `perform.cell.cycle.scoring` | `TRUE` | If `TRUE`, performs cell cycle scoring |
@@ -348,6 +355,76 @@ ExtractFeatureTestResults(
 
 ***
 
+### `FeatureTest()`
+
+Allows to perform a feature-based QC test on a Seurat object, computing thresholds and pass/fail statistics for one or more features. For the given feeature(s), thresholds and comparison operations, the function computes per-cell pass/fail results and returns the Seurat object with new metadata columns `<feature>.pass` (logical). It also allows to apply a batch-wise thresholding strategy, where thresholds are computed per batch level and applied to the corresponding cells.
+
+```r
+FeatureTest(
+  SeuratObject,
+  features,
+  assay = "RNA",
+  layers = NULL,
+  thresholds = "mad",
+  operators = "both",
+  nmad = 3,
+  percentile = 1
+) 
+```
+
+| Parameter | Default | Description |
+| :-- | :-- | :-- |
+| `SeuratObject` | — | Seurat object|
+| `features` | — | List of feature names to test |
+| `assay` | `NULL` | Assay name containing the features. If not specified, the default assay is used. |
+| `thresholds` | `"mad"` | Thresholds to test againts. If "mad" or "percentile", it will compute said statistics as a threshold. |
+| `operators` | `"both"` | Comparison operators for thresholding ("<", ">", ">=", "<=", "!=", "=="). MAD and percentile thresholds can use upper and lower bounds ("upper", "lower"), or both ("both"). |
+| `nmad` | `3` | Number of median absolute deviations for thresholding |
+| `percentile` | `1` | Percentile for thresholding |
+
+***
+
+### `VariableFeaturePlot2()`
+
+This is an adapted version of Seurat's `VariableFeaturePlot()` that forces to use the object's consensus set of high variable features in case of multiple layers. It also adds the ability to label points based on their rank or a user-defined list.
+
+```r
+VariableFeaturePlot2(
+  object,
+  cols = c('black', 'red'),
+  pt.size = 1,
+  log = NULL,
+  selection.method = NULL,
+  assay = NULL,
+  raster = NULL,
+  raster.dpi = c(512, 512),
+  hvf = NULL,
+  label = FALSE,
+  n.top.hvf = 10,
+  custom.label = NULL,
+  repel = TRUE
+) 
+```
+
+| Parameter | Default | Description |
+| :-- | :-- | :-- |
+| `SeuratObject` | — | Seurat object|
+| `cols` | c('black', 'red') | Colors to use for the non-variable and variable features, respectively |
+| `pt.size` | 1 | Point size for the plot. |
+| `log` | `NULL` | Log the x-axis in log scale |
+| `selection.method` | `NULL` | Method for selecting features. If not specified, the default is used. |
+| `assay` | `NULL` | Assay name containing the features. If not specified, the default assay is used. |
+| `raster` | `NULL` | Whether to rasterize the plot. If not specified, it will rasterized the plot if the number of points exceeds 100000. |
+| `raster.dpi` | `c(512, 512)` | DPI for rasterization. |
+| `hvf` | `NULL` | High variable features to highlight. If not specified, they will be automatically selected. |
+| `label` | `FALSE` | Whether to label points with their feature names. |
+| `n.top.hvf` | `10` | Number of top high variable features to label. |
+| `custom.label` | `NULL` | Custom labels for the points. |
+| `repel` | `TRUE` | Whether to repel labels. |
+
+
+***
+
 ## Internal functions
 
 The following functions are internal helpers not exported from the namespace. They are documented here for reference.
@@ -371,6 +448,12 @@ Sets common x and y axis limits across a `patchwork` joined ggplot object. Used 
 ### `.collapse_boolean_columns()`
 Collapses multiple boolean columns into a single logical column, returning `TRUE` if all of the input columns are `TRUE` for a given row, and `FALSE` if any is `FALSE`. Used internally by `FeatureTest()`
 
+### `FilterVariableFeatures()`
+Fiters the high variable features of a Seurat object after applying `Seurat::FindVariableFeatures()` to delete low-informative genes such as mitochondrial, ribosomal, antisense and non-coding genes.
+
+## `SelectPCs()`
+Uses intrinsicDimension's maxLikGlobalDimEst() to estimate the intrinsic dimensionality of a Seurat object based on the PCA embeddings calculated with `Seurat::RunPCA()`. It returns a vector with the most informative PCs. This allows to automatize the number of PCs for use in downstream analyses such as clustering and UMAP/tSNE computation.
+
 ***
 
 ## Credits
@@ -378,6 +461,8 @@ Collapses multiple boolean columns into a single logical column, returning `TRUE
 - `CalculateCDR` adapted from [conquer_comparison](https://github.com/csoneson/conquer_comparison/blob/master/scripts/apply_MASTcpmDetRate.R) by Charlotte Soneson.
 
  - MALAT1 thresholding logic adapted from [BaderLab's MALAT1_threshold] (https://github.com/BaderLab/MALAT1_threshold)
+
+- `VariableFeaturePlot2` adapted from Seurat's `VariableFeaturePlot()`.
 
 ## License
 

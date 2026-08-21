@@ -16,13 +16,28 @@
 #' @param raster Convert points to raster format, default is \code{NULL}
 #' which will automatically use raster if the number of points plotted is greater than
 #' 100,000
-#' @param hvf The list of highly variable features to use for plotting. If \code{NULL}, the function will
-#' use the variable features stored in the Seurat object.
+#' @param hvf The list of highly variable features to use for plotting. If \code{NULL}, the function
+#'   will use the variable features stored in the Seurat object.
+#' @param label Logical, whether to label the top variable features on the plot. Default is \code
+#'   {FALSE}.
+#' @param n.top.hvf Number of top variable features to label if \code{label} is \code{TRUE}.
+#'   Default is 10.
+#' @param custom.label A character vector of specific features to label on the plot. If provided,
+#'   these features will be labeled instead of the top variable features. Default is \code{NULL}.
+#' @param repel Logical, whether to use ggrepel for labeling points. Default is \code{TRUE}.
+#'
+#' @details
+#' This function is designed to provide flexibility in visualizing variable features in a Seurat
+#' object. By allowing users to specify a custom list of highly variable features, it enables the
+#' visualization of specific features of interest, rather than being limited to the variable
+#' features identified by Seurat's default methods.
+#'
 #' @return A ggplot object
 #'
 #' @import Seurat
 #' @import SeuratObject
 #' @importFrom ggplot2 labs scale_color_manual scale_x_log10
+#' @importFrom dplyr filter arrange slice_head
 #' @export
 #'
 #' @examples
@@ -52,19 +67,23 @@ VariableFeaturePlot2 <- function(
   assay = NULL,
   raster = NULL,
   raster.dpi = c(512, 512),
-  hvf = NULL
+  hvf = NULL,
+  label = FALSE,
+  n.top.hvf = 10,
+  custom.label = NULL,
+  repel = TRUE
 ) {
   if (length(x = cols) != 2) {
     stop("'cols' must be of length 2")
   }
-  hvf.info <- SeuratObject::HVFInfo(
+  hvf.df <- SeuratObject::HVFInfo(
     object = object,
     assay = assay,
     method = selection.method,
     status = TRUE
   )
 
-  status.col <- colnames(hvf.info)[grepl("variable", colnames(hvf.info))][[1]]
+  status.col <- colnames(hvf.df)[grepl("variable", colnames(hvf.df))][[1]]
 
   if (is.null(x = hvf)) {
     hvf <- SeuratObject::VariableFeatures(
@@ -73,25 +92,25 @@ VariableFeaturePlot2 <- function(
       method = selection.method
     )
     # Ensure that the filtered variables have their status set to 'no'.
-    hvf.info[!rownames(x = hvf.info) %in% hvf, status.col] <- FALSE
+    hvf.df[!rownames(x = hvf.df) %in% hvf, status.col] <- FALSE
   } else {
-    if (!all(hvf %in% rownames(x = hvf.info))) {
+    if (!all(hvf %in% rownames(x = hvf.df))) {
       stop("Some features in 'hvf' are not present in the hvf info dataframe.")
     }
     # Reset the status of all features to FALSE.
-    hvf.info[rownames(x = hvf.info), status.col] <- FALSE
+    hvf.df[rownames(x = hvf.df), status.col] <- FALSE
     # Set the status of the specified hvf features to TRUE.
-    hvf.info[rownames(x = hvf.info) %in% hvf, status.col] <- TRUE
+    hvf.df[rownames(x = hvf.df) %in% hvf, status.col] <- TRUE
   }
 
-  var.status <- c('no', 'yes')[unlist(hvf.info[[status.col]]) + 1]
+  var.status <- c('no', 'yes')[unlist(hvf.df[[status.col]]) + 1]
 
-  if (colnames(x = hvf.info)[3] == 'dispersion.scaled') {
-    hvf.info <- hvf.info[, c(1, 2)]
-  } else if (colnames(x = hvf.info)[3] == 'variance.expected') {
-    hvf.info <- hvf.info[, c(1, 4)]
+  if (colnames(x = hvf.df)[3] == 'dispersion.scaled') {
+    hvf.info <- hvf.df[, c(1, 2)]
+  } else if (colnames(x = hvf.df)[3] == 'variance.expected') {
+    hvf.info <- hvf.df[, c(1, 4)]
   } else {
-    hvf.info <- hvf.info[, c(1, 3)]
+    hvf.info <- hvf.df[, c(1, 3)]
   }
   axis.labels <- switch(
     EXPR = colnames(x = hvf.info)[2],
@@ -136,7 +155,30 @@ VariableFeaturePlot2 <- function(
   if (log) {
     plot <- plot + scale_x_log10()
   }
-  return(plot)
 
-  # TODO: Integrate labeling of top variable features as an option.
+  if (label) {
+    if (is.null(x = custom.label)) {
+      top.hvf <- hvf.df |>
+        dplyr::filter(.data[[status.col]] == TRUE) |>
+        dplyr::arrange(.data[["rank"]]) |>
+        dplyr::slice_head(n = n.top.hvf) |>
+        rownames()
+      plot <- LabelPoints(plot = plot, points = top.hvf, repel = repel)
+    } else {
+      # check all custom features are present
+      present.features <- custom.label[custom.label %in% rownames(x = hvf.df)]
+      if (length(x = present.features) != length(x = custom.label)) {
+        warning(
+          "Some features in 'custom.label' were not found in the hvf info dataframe and will not be labeled."
+        )
+      }
+      plot <- LabelPoints(
+        plot = plot,
+        points = present.features,
+        repel = repel
+      )
+    }
+  }
+
+  return(plot)
 }
