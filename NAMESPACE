@@ -8,7 +8,10 @@ export(ExtractFeatureTestResults)
 export(FeatureDensityPlot)
 export(FeatureScatterGradient)
 export(FeatureTest)
+export(FilterVariableFeatures)
 export(QCMetricsBoxplot)
+export(SelectPCs)
+export(VariableFeaturePlot2)
 export(VlnPlotGradient)
 export(scGSEAmarkers)
 import(BPCells)
@@ -22,16 +25,26 @@ import(patchwork)
 importFrom(data.table,rbindlist)
 importFrom(dplyr,
   any_of,
+  arrange,
+  filter,
   first,
   full_join,
   group_by,
   n,
   select,
+  slice_head,
   summarise
 )
 importFrom(ggplot2,
   coord_cartesian,
-  ggplot_build
+  ggplot_build,
+  labs,
+  scale_color_manual,
+  scale_x_log10
+)
+importFrom(intrinsicDimension,
+  maxLikGlobalDimEst,
+  maxLikPointwiseDimEst
 )
 importFrom(purrr,reduce)
 importFrom(rhdf5,h5read)

@@ -680,8 +680,7 @@ FilterVariableFeatures <- function(
 #'
 #' @import Seurat
 #' @import SeuratObject
-#' @imporFrom intrinsicDimension maxLikGlobalDimEst maxLikPointwiseDimEst
-#' @import
+#' @importFrom intrinsicDimension maxLikGlobalDimEst maxLikPointwiseDimEst
 #' @export
 #'
 SelectPCs <- function(SeuratObject, seed = 42L) {

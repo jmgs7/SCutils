@@ -54,7 +54,8 @@
 #' )
 #' }
 #'
-#' @import Seurat SeuratObject
+#' @import Seurat
+#' @import SeuratObject
 #' @importFrom stats median mad quantile
 #' @importFrom dplyr full_join
 #' @importFrom purrr reduce

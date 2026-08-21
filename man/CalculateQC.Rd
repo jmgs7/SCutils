@@ -6,7 +6,7 @@
 \usage{
 CalculateQC(
   SeuratObject,
-  assay = "RNA",
+  assay = NULL,
   layers = NULL,
   species = "human",
   perform.cell.cycle.scoring = TRUE,
@@ -18,7 +18,8 @@ CalculateQC(
 \item{SeuratObject}{A Seurat object. The function reads counts from the active assay and adds metadata columns.
 Patterns are interpreted as regular expressions by Seurat::PercentageFeatureSet.}
 
-\item{assay}{Default: "RNA". The assay in SeuratObject to use for QC calculations.}
+\item{assay}{Default: "NULL". The assay in SeuratObject to use for QC calculations.
+If not specified, the default assay will be used.}
 
 \item{layers}{Default: `NULL`. If normalization has been applied to the SeuratObject, you can provide
 the layers where the data is stored. If NULL, the function will attempt to find all log-normalized data layers
