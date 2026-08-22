@@ -721,7 +721,8 @@ SelectPCs <- function(SeuratObject, seed = 42L) {
     message(paste0("Average dimensions: ", mean(unlist(dim.estimates))))
     message(paste0("Max dimensions: ", max(unlist(dim.estimates))))
     # We consider the maximum intrinsic dimension across all chunks as the final estimate
-    est.PC <- round(max(unlist(dim.estimates)))
+    # We round up to the nearest integer.
+    est.PC <- ceiling(max(unlist(dim.estimates)))
 
     # For smaller datasets, we can directly estimate the intrinsic dimensions without chunking.
   } else if (n.PCs < 100000) {
@@ -731,8 +732,7 @@ SelectPCs <- function(SeuratObject, seed = 42L) {
       unbiased = TRUE,
       neighborhood.aggregation = 'robust'
     ) # this is teh best but crashes when run on the full dataset
-    est.PC <- round(int.dim[[1]])
-    message(paste0("Instrinsic dimensions: ", est.PC))
+    est.PC <- ceiling(int.dim[[1]])
   }
 
   # If it is still NA, fallback to the pointwise estimation method, and take the median of the valid estimates as a robust global estimate.
@@ -743,8 +743,9 @@ SelectPCs <- function(SeuratObject, seed = 42L) {
     m <- pt$dim.est
     m2 <- m[is.finite(m) & m > 0] # keep only finite positive estimates
     int.dim <- median(m2) # robust global estimate = median of valid ones
-    est.PC <- round(int.dim[[1]])
+    est.PC <- ceiling(int.dim[[1]])
   }
 
+  message(paste0("Intrinsic dimensions: ", est.PC))
   return(1:est.PC)
 }
