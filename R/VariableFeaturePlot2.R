@@ -1,7 +1,6 @@
 #' @title VariableFeaturePlot2
 #'
-#' @description
-#' This function is a modified version of Seurat's VariableFeaturePlot.
+#' @description This function is a modified version of Seurat's VariableFeaturePlot.
 #' It allows users to specify a custom list of highly variable features (hvf) for plotting,
 #' rather than relying solely on the variable features stored in the Seurat object. It also forces
 #' the use of the output of SeuratObject::VariableFeatures() to highligh the high variable features
