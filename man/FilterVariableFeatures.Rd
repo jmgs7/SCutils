@@ -16,7 +16,7 @@ FilterVariableFeatures(
 
 \item{pattern}{A character vector of regular expression patterns to filter variable features.
 If NULL, default patterns will be used to remove TCR/BCR and IG genes,
-HLA genes, mitochondrial and ribosomal genes, and non-coding and antisense genes.}
+mitochondrial and ribosomal genes, and non-coding and antisense genes.}
 
 \item{assay}{The assay to filter variable features from. Defaults to "RNA".}
 

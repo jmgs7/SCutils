@@ -598,7 +598,7 @@ ExtractFeatureTestResults <- function(
 #' @param SeuratObject A Seurat object containing variable features.
 #' @param pattern A character vector of regular expression patterns to filter variable features.
 #'   If NULL, default patterns will be used to remove TCR/BCR and IG genes,
-#'   HLA genes, mitochondrial and ribosomal genes, and non-coding and antisense genes.
+#'   mitochondrial and ribosomal genes, and non-coding and antisense genes.
 #' @param assay The assay to filter variable features from. Defaults to "RNA".
 #' @param verbose Logical. If TRUE, prints the number of features removed and remaining.
 #' @return A Seurat object with filtered variable features.
