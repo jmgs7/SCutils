@@ -638,7 +638,6 @@ FilterVariableFeatures <- function(
     pattern <- c(
       "^TR[ABDG][VDJ]", # TCR genes
       "^IG[HKL][VDJ]", # BCR/IG genes
-      "^HLA-", # HLA genes (avoids multi-donor issues)
       "^MT-", # Mitochondrial genes
       "^RP[LS]", # Ribosomal protein genes
       "^MRP[LS]", # Mitochondrial ribosomal protein genes
