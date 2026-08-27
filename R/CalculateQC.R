@@ -192,26 +192,36 @@ CalculateQC <- function(
     SeuratObject@meta.data$log10_nCount_RNA # Complexity, corresponding to the amount of genes that are covered by the counts of each cell.
 
   # This steps are only if the Seurat object has log-normalized data layers, which are not always present.
+  is_log_data_layer <- function(layer_names) {
+    grepl("^data($|[._])", layer_names)
+  }
+
   object.layers <- SeuratObject::Layers(
     SeuratObject,
     assay = assay
   )
+  available.log.layers <- object.layers[is_log_data_layer(object.layers)]
+
   if (!is.null(layers)) {
-    # Check if the Seurat object has log-normalized data layers, and if not, skip the log-normalized QC calculations.
+    # Check if user-specified layers exist and correspond to log-normalized data layers.
     if (!all(layers %in% object.layers)) {
       stop(
         "Some specified layers are not present in the Seurat object. Please check the provided layers argument."
       )
     }
-    # Also check if the user provided layers are present in the Seurat object.
+    if (!all(is_log_data_layer(layers))) {
+      stop(
+        "All specified layers must be log-normalized data layers named like 'data', 'data.*', or 'data_*'."
+      )
+    }
   } else {
-    if (!any(grepl("data", object.layers))) {
+    if (length(available.log.layers) == 0) {
       warning(
         "User did not specified any layers and no log-normalized data layers were found in the Seurat object. Skipping log-normalized QC calculations."
       )
       return(SeuratObject)
     }
-    layers <- object.layers[grepl("data", object.layers)]
+    layers <- available.log.layers
   }
 
   DataLayersQC <- function(
@@ -226,13 +236,13 @@ CalculateQC <- function(
     # We calculate the total number of log-normalized counts per cell, and the total
     # number of features detected per cell in log counts, and cell cycle scoring.
 
-    # 1. Fetch all log-normalized 'data' layers names.
+    # 1. Fetch all log-normalized 'data' layer names.
     if (is.null(layers)) {
       layers <- SeuratObject::Layers(
         SeuratObject,
-        assay = assay,
-        search = "data"
+        assay = assay
       )
+      layers <- layers[is_log_data_layer(layers)]
     }
 
     # 2. Cycle per layer and calculate the total number of log-normalized counts per cell,
