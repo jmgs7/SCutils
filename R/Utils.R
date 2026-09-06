@@ -748,3 +748,113 @@ SelectPCs <- function(SeuratObject, seed = 42L) {
   message(paste0("Intrinsic dimensions: ", est.PC))
   return(1:est.PC)
 }
+
+#' @title PlotClusterComposition
+#' @description
+#' Create a stacked bar plot showing, for each cluster at a selected Seurat
+#' clustering resolution, the proportion of cells in each category of a metadata
+#' variable (for example, `library`).
+#'
+#' @param SeuratObject A `Seurat` object containing clustering metadata columns.
+#' @param resolution.value Numeric scalar. Clustering resolution to use when
+#'   building the cluster metadata column name.
+#' @param group.by Character scalar. Metadata column used for category
+#'   composition. Default: `"library"`.
+#' @param cluster.prefix Character scalar. Prefix used to build the cluster
+#'   metadata column, typically `"RNA_snn_res."` or `"SCT_snn_res."`.
+#' @param percent.accuracy Numeric scalar passed to
+#'   `scales::label_percent(accuracy = ...)`. Default: `1`.
+#' @param return.plot Logical scalar. If `TRUE`, the function returns a `ggplot2` object.
+#'   If `FALSE`, the function returns a data frame with the plot data. Default: `TRUE`.
+#'
+#' @details
+#' The cluster column is constructed as
+#' `paste0(resolution.prefix, resolution.value)`. For each cluster, the function
+#' computes:
+#' \deqn{p_{c,g} = n_{c,g} / \sum_g n_{c,g}}
+#' where \eqn{n_{c,g}} is the number of cells in cluster \eqn{c} and metadata
+#' category \eqn{g}. The returned plot therefore shows within-cluster
+#' proportions.
+#'
+#' @return A `ggplot2` object with one bar per cluster and stacked fills
+#'   representing metadata-category proportions.
+#'
+#' @examples
+#' \dontrun{
+#' p <- PlotClusterComposition(
+#'   SeuratObject = scSLE,
+#'   resolution.value = 0.3,
+#'   group.by = "library",
+#'   return.plot = TRUE,
+#'   cluster.prefix = "RNA_snn_res."
+#' )
+#' p
+#' }
+#'
+#' @import Seurat
+#' @import SeuratObject
+#' @importFrom dplyr transmute count group_by mutate ungroup
+#' @importFrom tibble rownames_to_column
+#' @importFrom ggplot2 ggplot aes geom_col scale_y_continuous labs
+#' @importFrom scales label_percent
+#' @export
+PlotClusterComposition <- function(
+  SeuratObject,
+  resolution.value,
+  group.by = "library",
+  cluster.prefix = "RNA_snn_res.",
+  return.plot = TRUE,
+  percent.accuracy = 1
+) {
+  cluster.column <- paste0(cluster.prefix, resolution.value)
+
+  if (!cluster.column %in% colnames(SeuratObject@meta.data)) {
+    stop("Cluster column not found: ", cluster.column, call. = FALSE)
+  }
+
+  if (!group.by %in% colnames(SeuratObject@meta.data)) {
+    stop("Metadata column not found: ", group.by, call. = FALSE)
+  }
+
+  plot.data <- SeuratObject@meta.data |>
+    tibble::rownames_to_column(var = "cell.id") |>
+    dplyr::transmute(
+      cell.id = .data$cell.id,
+      cluster = as.factor(.data[[cluster.column]]),
+      group = as.factor(.data[[group.by]])
+    ) |>
+    dplyr::count(cluster, group, name = "n.cells") |>
+    dplyr::group_by(cluster) |>
+    dplyr::mutate(proportion = n.cells / sum(n.cells)) |>
+    dplyr::ungroup()
+
+  if (!return.plot) {
+    return(plot.data)
+  }
+
+  plot <- ggplot2::ggplot(
+    plot.data,
+    ggplot2::aes(x = cluster, y = proportion, fill = group)
+  ) +
+    ggplot2::geom_col(width = 0.9, color = "black") +
+    ggplot2::scale_y_continuous(
+      labels = scales::label_percent(accuracy = percent.accuracy)
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(hjust = 0.5, face = "bold")
+    ) +
+    ggplot2::labs(
+      title = paste(
+        "Cluster composition by",
+        group.by,
+        "at resolution",
+        resolution.value
+      ),
+      x = paste0("Cluster (resolution = ", resolution.value, ")"),
+      y = "Proportion of cells",
+      fill = group.by
+    )
+
+  return(plot)
+}
