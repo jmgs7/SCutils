@@ -9,6 +9,7 @@ export(FeatureDensityPlot)
 export(FeatureScatterGradient)
 export(FeatureTest)
 export(FilterVariableFeatures)
+export(PlotClusterComposition)
 export(QCMetricsBoxplot)
 export(SelectPCs)
 export(VariableFeaturePlot2)
@@ -26,21 +27,29 @@ importFrom(data.table,rbindlist)
 importFrom(dplyr,
   any_of,
   arrange,
+  count,
   filter,
   first,
   full_join,
   group_by,
+  mutate,
   n,
   select,
   slice_head,
-  summarise
+  summarise,
+  transmute,
+  ungroup
 )
 importFrom(ggplot2,
+  aes,
   coord_cartesian,
+  geom_col,
+  ggplot,
   ggplot_build,
   labs,
   scale_color_manual,
-  scale_x_log10
+  scale_x_log10,
+  scale_y_continuous
 )
 importFrom(intrinsicDimension,
   maxLikGlobalDimEst,
@@ -48,6 +57,7 @@ importFrom(intrinsicDimension,
 )
 importFrom(purrr,reduce)
 importFrom(rhdf5,h5read)
+importFrom(scales,label_percent)
 importFrom(stats,
   cor,
   density,
@@ -59,3 +69,4 @@ importFrom(stats,
   quantile,
   smooth.spline
 )
+importFrom(tibble,rownames_to_column)

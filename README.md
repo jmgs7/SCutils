@@ -355,6 +355,32 @@ ExtractFeatureTestResults(
 
 ***
 
+### `PlotClusterComposition()`
+
+Creates a stacked bar plot showing, for each cluster at a selected Seurat clustering resolution, the proportion of cells in each category of a metadata variable.
+
+```r
+PlotClusterComposition(
+  SeuratObject,
+  resolution.value,
+  group.by = "library",
+  cluster.prefix = "RNA_snn_res.",
+  return.plot = TRUE,
+  percent.accuracy = 1
+)
+```
+
+| Parameter | Default | Description |
+| :-- | :-- | :-- |
+| `SeuratObject` | — | A Seurat object containing clustering and metadata columns |
+| `resolution.value` | — | Clustering resolution value used to construct the cluster column |
+| `group.by` | `"library"` | Metadata column used for composition categories |
+| `cluster.prefix` | `"RNA_snn_res."` | Prefix used with `resolution.value` to build the cluster metadata column name |
+| `return.plot` | `TRUE` | If `TRUE`, returns a `ggplot2` stacked-bar plot; if `FALSE`, returns the plotting `data.frame` |
+| `percent.accuracy` | `1` | Accuracy passed to `scales::label_percent()` for y-axis percentage formatting |
+
+***
+
 ### `FeatureTest()`
 
 Allows to perform a feature-based QC test on a Seurat object, computing thresholds and pass/fail statistics for one or more features. For the given feeature(s), thresholds and comparison operations, the function computes per-cell pass/fail results and returns the Seurat object with new metadata columns `<feature>.pass` (logical). It also allows to apply a batch-wise thresholding strategy, where thresholds are computed per batch level and applied to the corresponding cells.

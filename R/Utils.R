@@ -769,7 +769,7 @@ SelectPCs <- function(SeuratObject, seed = 42L) {
 #'
 #' @details
 #' The cluster column is constructed as
-#' `paste0(resolution.prefix, resolution.value)`. For each cluster, the function
+#' `paste0(cluster.prefix, resolution.value)`. For each cluster, the function
 #' computes:
 #' \deqn{p_{c,g} = n_{c,g} / \sum_g n_{c,g}}
 #' where \eqn{n_{c,g}} is the number of cells in cluster \eqn{c} and metadata
