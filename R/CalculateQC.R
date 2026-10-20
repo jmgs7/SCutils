@@ -133,7 +133,7 @@ CalculateQC <- function(
     mt.pattern = c("^MT-", "^mt-"),
     ribo.pattern = c("^RP[SL]", "^Rp[sl]"),
     hb.pattern = c("^HB[ABDEGMQZ]\\d*$", "^Hb[abgqy](?:-[a-z0-9]+)?$"),
-    ig.pattern = c("^IG[HKL][VJCDE]", "^Ig[hkl][vjcde]"),
+    ig.pattern = c("^IG(H[VDJAGEM]|[KL][VJC])", "^Ig(h[vdjagem]|[kl][vjc])"),
     plat.pattern = c(
       "PPBP|PF4|GP9|ITGA2B|TUBB1|ITGB3|GP1BA",
       "Ppbp|Pf4|Gp9|Itga2b|Tubb1|Itgb3|Gp1ba"

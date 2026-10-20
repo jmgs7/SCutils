@@ -636,8 +636,9 @@ FilterVariableFeatures <- function(
     # Otherwise, use the default patterns to remove
     # Define patterns for genes to remove
     pattern <- c(
-      "^TR[ABDG][VDJ]", # TCR genes
-      "^IG[HKL][VDJ]", # BCR/IG genes
+      "^TR([AG][VJC]|[BD][VDJC])", # TCR genes
+      "^IG(H[VDJAGEM]|[KL][VJC])", # BCR/IG genes
+      # TCR and BCR genes act as confounding factors in the clustering process. Reference - DOI:10.1093/bfgp/elac044
       "^MT-", # Mitochondrial genes
       "^RP[LS]", # Ribosomal protein genes
       "^MRP[LS]", # Mitochondrial ribosomal protein genes
