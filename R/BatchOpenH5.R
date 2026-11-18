@@ -94,7 +94,7 @@ BatchOpenH5 <- function(
     open.path <- file
     save.path <- file.path(
       BP.data.dir,
-      paste0(gsub(".h5*", "", basename(file)), "_BP")
+      paste0(gsub("\\.h5*$", "", basename(file)), "_BP")
     ) # Create save path with _BP suffix
 
     if (!dir.exists(save.path)) {
@@ -164,7 +164,7 @@ BatchOpenH5 <- function(
   ) |>
     futurize::futurize()
   # Set the names of the list to the base names of the files without the .h5* extension
-  names(data.list) <- gsub(".h5*", "", basename(files))
+  names(data.list) <- gsub("\\.h5*$", "", basename(files))
 
   # Generate simple metadata indicating the procedence of the sample if requested.
   if (generate.metadata) {
