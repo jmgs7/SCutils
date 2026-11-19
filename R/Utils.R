@@ -898,7 +898,7 @@ PlotClusterComposition <- function(
   # is reclaimed automatically once the dataset/file handles above (which
   # it depends on) are closed; there is nothing further for us to release
   # here.
-  as.integer(rhdf5::H5Tget_size(type.id))
+  return(as.integer(rhdf5::H5Tget_size(type.id)))
 }
 
 #' @title .GetH5DatasetStorageSettings
@@ -975,11 +975,13 @@ PlotClusterComposition <- function(
     }
   }
 
-  list(
+  plist <- list(
     chunk = if (is.null(chunk.dims)) NA_integer_ else as.integer(chunk.dims[1]),
     gzip.level = gzip.level,
     shuffle = shuffle.enabled
   )
+
+  return(plist)
 }
 
 #' @title .VerifyAllDatasetsIdentical
@@ -1018,7 +1020,11 @@ PlotClusterComposition <- function(
     listing <- listing[listing$otype == "H5I_DATASET", ]
     # Reassemble the full path: the root group is reported as "/", so we
     # avoid producing a double slash ("//name") for top-level datasets.
-    paste0(ifelse(listing$group == "/", "", listing$group), "/", listing$name)
+    return(paste0(
+      ifelse(listing$group == "/", "", listing$group),
+      "/",
+      listing$name
+    ))
   }
 
   # Local helper: read a single dataset's values and reduce them to one
@@ -1039,7 +1045,7 @@ PlotClusterComposition <- function(
     if (is.array(values) || is.matrix(values)) {
       values <- as.vector(values)
     }
-    digest::digest(values, algo = "md5")
+    return(digest::digest(values, algo = "md5"))
   }
 
   dataset.paths.a <- ListDatasetPaths(file.a)
@@ -1054,9 +1060,9 @@ PlotClusterComposition <- function(
     all.dataset.paths,
     function(path) {
       if (path %in% dataset.paths.a) {
-        HashDatasetValues(file.a, path)
+        return(HashDatasetValues(file.a, path))
       } else {
-        NA_character_
+        return(NA_character_)
       }
     },
     character(1)
@@ -1065,9 +1071,9 @@ PlotClusterComposition <- function(
     all.dataset.paths,
     function(path) {
       if (path %in% dataset.paths.b) {
-        HashDatasetValues(file.b, path)
+        return(HashDatasetValues(file.b, path))
       } else {
-        NA_character_
+        return(NA_character_)
       }
     },
     character(1)

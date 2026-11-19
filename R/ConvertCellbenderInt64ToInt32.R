@@ -10,11 +10,9 @@
 #' \preformatted{
 #' get10xMatrixType: unrecognized type for group matrix
 #' }
-#' This has been observed for at least `pool4_batch1.h5`, `pool5_batch1.h5`
-#' and `pool7_batch1.h5` in the SLE PBMC CellBender outputs, while every
-#' other `/matrix` dataset (`indices`, `indptr`, `shape`) and every other
-#' HDF5 group in those same files (`droplet_latents`, `global_latents`,
-#' `metadata`) already uses standard, BPCells-compatible types.
+#' This has been observed for some CellBender outputs, while every
+#' other `/matrix` dataset (`indices`, `indptr`, `shape`) already
+#' uses standard, BPCells-compatible types.
 #'
 #' `ConvertCellbenderInt64ToInt32()` repairs only the affected dataset. It
 #' never touches the input file; it writes a new file next to it (or
@@ -27,11 +25,12 @@
 #' comments of the function body:
 #' \enumerate{
 #'   \item \strong{Cheap pre-check.} Read only the HDF5 *datatype* (not the
-#'     values) of `/matrix/data`. If it is already 4 bytes (int32) or
-#'     smaller, there is nothing to fix: the function prints an informative
-#'     message and returns `invisible(NULL)` \emph{without raising an
-#'     error}, so it is safe to call unconditionally inside a loop or a
-#'     pipeline over many files without special-casing "already OK" files.
+#'     values) of `/matrix/data`. If it is already 4 bytes (int32),
+#'     there is nothing to fix: the function prints an informative
+#'     message and returns the input file path as invisible output 
+#'     \emph{without raising an error}, so it is safe to call unconditionally 
+#'     inside a loop or a pipeline over many files without special-casing 
+#'     "already OK" files.
 #'   \item \strong{Copy + targeted rewrite.} Copy the whole input file
 #'     byte-for-byte (so every group/dataset/attribute other than
 #'     `/matrix/data` is preserved exactly), then read just the
@@ -76,8 +75,8 @@
 #'   to keep this `TRUE` for anything used in an analysis pipeline.
 #'
 #' @return
-#' * If `/matrix/data` in `input.h5` is already stored as 32 bits or
-#'   fewer: `invisible(NULL)`. No file is written and no error is raised.
+#' * If `/matrix/data` in `input.h5` is already stored as 32 bits: `invisible(input.h5)`.
+#'   No file is written and no error is raised.
 #' * Otherwise: `invisible(output.h5)`, the path to the newly written,
 #'   repaired HDF5 file.
 #'
@@ -85,15 +84,15 @@
 #' \dontrun{
 #' # Single file.
 #' ConvertCellbenderInt64ToInt32(
-#'   input.h5  = "~/Data/cellbender/pool4_batch1.h5",
-#'   output.h5 = "~/Data/cellbender/pool4_batch1_int32.h5"
+#'   input.h5  = "path/to/input.h5",
+#'   output.h5 = "~path/to/output.h5"
 #' )
 #'
 #' # Looping over every file in a directory: files that are already int32
 #' # are skipped automatically (no error), so no filtering is needed
 #' # beforehand.
 #' h5.files <- list.files(
-#'   "~/Data/cellbender", pattern = "\\.h5$", full.names = TRUE
+#'   "datadir/", pattern = "\\.h5$", full.names = TRUE
 #' )
 #' for (f in h5.files) {
 #'   ConvertCellbenderInt64ToInt32(
@@ -141,7 +140,7 @@ ConvertCellbenderInt64ToInt32 <- function(
       input.h5,
       " is already 32-bit; skipping conversion."
     )
-    return(invisible(NULL))
+    return(invisible(input.h5))
   }
 
   # Ensure any HDF5 file handles opened below are released even if the
@@ -178,13 +177,13 @@ ConvertCellbenderInt64ToInt32 <- function(
   # --- Stage 2d: validate it is safe to narrow to (u)int32 ----------------
   # We only ever want to shrink the storage type, never to change the
   # values. These checks make sure that doing so cannot silently lose
-  # information: no missing values, nothing negative (10x/BPCells counts
+  # information: no missing values, nothing negative (10X/BPCells counts
   # are non-negative), nothing above the uint32 maximum, and nothing with a
   # fractional part (which would indicate these are not raw counts).
   if (anyNA(data.as.double)) {
     stop("`/matrix/data` contains NA values; aborting conversion.")
   }
-  if (min(data.as.double) < 0 || max(data.as.double) > (2^32 - 1)) {
+  if (min(data.as.double) < 0 || max(data.as.double) > (2**32 - 1)) {
     stop("`/matrix/data` values fall outside the uint32 range [0, 2^32 - 1].")
   }
   if (any(data.as.double != trunc(data.as.double))) {
