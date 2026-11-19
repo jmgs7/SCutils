@@ -859,3 +859,259 @@ PlotClusterComposition <- function(
 
   return(plot)
 }
+
+#' @title .H5DatasetIntSize
+#'
+#' @description
+#' Reads only the HDF5 *datatype* of a dataset (e.g. "this is a 4-byte
+#' integer"), never the values stored in it. This makes the check cheap
+#' enough to run unconditionally, even on datasets with hundreds of
+#' millions of entries, because HDF5 stores the datatype as a small piece
+#' of metadata separate from the bulk data.
+#'
+#' @param file Character scalar; path to an HDF5 file.
+#' @param dataset Character scalar; full path of the dataset within `file`
+#'   (e.g. `"/matrix/data"`).
+#'
+#' @return Integer scalar giving the byte width of the dataset's storage
+#'   type (e.g. `4L` for a 32-bit integer, `8L` for a 64-bit integer).
+#'
+#' @importFrom rhdf5 H5Fopen H5Fclose H5Dopen H5Dclose H5Dget_type
+#'   H5Tget_size
+#' @noRd
+
+.H5DatasetIntSize <- function(file, dataset) {
+  # Open the file read-only: this function must never modify anything.
+  file.id <- rhdf5::H5Fopen(file, flags = "H5F_ACC_RDONLY")
+  # on.exit(..., add = TRUE) guarantees the file handle is released even if
+  # an error occurs further down, preventing leaked HDF5 handles.
+  on.exit(rhdf5::H5Fclose(file.id), add = TRUE)
+
+  dataset.id <- rhdf5::H5Dopen(file.id, dataset)
+  on.exit(rhdf5::H5Dclose(dataset.id), add = TRUE)
+
+  # H5Dget_type() returns a handle describing the dataset's storage type
+  # (not its values). H5Tget_size() then asks that type how many bytes
+  # each stored element occupies.
+  type.id <- rhdf5::H5Dget_type(dataset.id)
+  # Note: rhdf5 does not export an H5Tclose() function, so this type handle
+  # is reclaimed automatically once the dataset/file handles above (which
+  # it depends on) are closed; there is nothing further for us to release
+  # here.
+  as.integer(rhdf5::H5Tget_size(type.id))
+}
+
+#' @title .GetH5DatasetStorageSettings
+#'
+#' @description
+#' Inspects a dataset's HDF5 "creation property list" - the record of how
+#' the dataset is physically laid out and compressed on disk - and
+#' extracts the three settings relevant to recreating an equivalent
+#' dataset: the chunk size used for I/O, the gzip (deflate) compression
+#' level, and whether the byte-shuffle filter is enabled. No assumption is
+#' made about what these settings "should" be; whatever the dataset was
+#' actually written with is read back and can then be reused verbatim.
+#'
+#' @param file Character scalar; path to an HDF5 file.
+#' @param dataset Character scalar; full path of the dataset within `file`.
+#'
+#' @return A named `list` with three elements:
+#'   \describe{
+#'     \item{`chunk`}{Integer; the dataset's chunk size (first dimension,
+#'       which is sufficient for the 1-D datasets this package deals
+#'       with). `NA_integer_` if the dataset is not chunked.}
+#'     \item{`gzip.level`}{Integer; the deflate/gzip compression level in
+#'       use (0-9). `0L` if no deflate filter is present.}
+#'     \item{`shuffle`}{Logical; `TRUE` if the byte-shuffle filter is
+#'       enabled, `FALSE` otherwise.}
+#'   }
+#'
+#' @importFrom rhdf5 H5Fopen H5Fclose H5Dopen H5Dclose H5Dget_create_plist
+#'   H5Pget_chunk H5Pget_nfilters H5Pget_filter
+#' @noRd
+
+.GetH5DatasetStorageSettings <- function(file, dataset) {
+  # Open read-only and clean up handles on exit, exactly as in
+  # .H5DatasetIntSize() above.
+  file.id <- rhdf5::H5Fopen(file, flags = "H5F_ACC_RDONLY")
+  on.exit(rhdf5::H5Fclose(file.id), add = TRUE)
+  dataset.id <- rhdf5::H5Dopen(file.id, dataset)
+  on.exit(rhdf5::H5Dclose(dataset.id), add = TRUE)
+
+  # The "creation property list" is where HDF5 records layout decisions
+  # (chunking, compression filters, ...) made when the dataset was first
+  # created.
+  plist.id <- rhdf5::H5Dget_create_plist(dataset.id)
+
+  # H5Pget_chunk() returns the chunk dimensions, or errors if the dataset
+  # is not chunked at all (e.g. stored contiguously); we treat that as "no
+  # chunk size to report" rather than letting the error propagate.
+  chunk.dims <- tryCatch(
+    rhdf5::H5Pget_chunk(plist.id),
+    error = function(e) NULL
+  )
+
+  # A dataset's filter pipeline can contain zero or more filters (e.g.
+  # shuffle, then deflate). We inspect each one in turn and pick out the
+  # settings we care about.
+  n.filters <- rhdf5::H5Pget_nfilters(plist.id)
+
+  gzip.level <- 0L
+  shuffle.enabled <- FALSE
+  if (n.filters > 0) {
+    # Note: rhdf5's H5Pget_filter() uses 1-based (R-style) indexing, so we
+    # iterate from 1 to n.filters, not 0 to n.filters - 1.
+    for (filter.index in seq_len(n.filters)) {
+      filter.info <- rhdf5::H5Pget_filter(plist.id, filter.index)
+      # filter.info is a list whose 2nd element names the filter and whose
+      # 1st element carries its parameter(s), e.g. the compression level
+      # for "deflate".
+      filter.name <- filter.info[[2]]
+      if (identical(filter.name, "deflate")) {
+        gzip.level <- as.integer(filter.info[[1]])
+      } else if (identical(filter.name, "shuffle")) {
+        shuffle.enabled <- TRUE
+      }
+    }
+  }
+
+  list(
+    chunk = if (is.null(chunk.dims)) NA_integer_ else as.integer(chunk.dims[1]),
+    gzip.level = gzip.level,
+    shuffle = shuffle.enabled
+  )
+}
+
+#' @title .VerifyAllDatasetsIdentical
+#'
+#' @description
+#' Enumerates every dataset present in either of two HDF5 files (their
+#' union, so a dataset missing from just one file is flagged rather than
+#' silently ignored), reads each dataset's values from both files, and
+#' compares them via MD5 digest. This checks \emph{all} groups in a
+#' CellBender file - including `droplet_latents`, `global_latents` and
+#' `metadata`, which BPCells never reads - not only the `/matrix` group.
+#'
+#' @param file.a,file.b Character scalars; paths to the two HDF5 files to
+#'   compare. Order does not matter for the comparison itself, but error
+#'   messages report "only in file.a" / "only in file.b" using this order.
+#'
+#' @return Invisibly, `TRUE` if every dataset's values match. If any
+#'   dataset is missing from one file, or its values differ between the
+#'   two files, the function `stop()`s with a message listing every
+#'   affected dataset path.
+#'
+#' @importFrom rhdf5 h5ls h5read h5closeAll
+#' @noRd
+
+.VerifyAllDatasetsIdentical <- function(file.a, file.b) {
+  on.exit(rhdf5::h5closeAll(), add = TRUE)
+
+  # Local helper: list every dataset path (e.g. "/matrix/data",
+  # "/metadata/estimator") contained in a single HDF5 file.
+  ListDatasetPaths <- function(file) {
+    # h5ls(..., recursive = TRUE) walks the whole file, returning one row
+    # per object (group or dataset) with its parent group ("group") and
+    # its own name ("name"), plus its object type ("otype").
+    listing <- rhdf5::h5ls(file, recursive = TRUE)
+    # Keep only datasets (not groups themselves).
+    listing <- listing[listing$otype == "H5I_DATASET", ]
+    # Reassemble the full path: the root group is reported as "/", so we
+    # avoid producing a double slash ("//name") for top-level datasets.
+    paste0(ifelse(listing$group == "/", "", listing$group), "/", listing$name)
+  }
+
+  # Local helper: read a single dataset's values and reduce them to one
+  # MD5 digest, so two datasets can be compared with a single equality
+  # check regardless of their size or dimensionality.
+  HashDatasetValues <- function(file, dataset.path) {
+    # bit64conversion = "double" ensures int64 datasets elsewhere in the
+    # file (e.g. /metadata/barcodes_analyzed_inds) are read successfully
+    # rather than erroring, and are compared numerically rather than being
+    # skipped.
+    values <- rhdf5::h5read(file, dataset.path, bit64conversion = "double")
+    if (is.numeric(values)) {
+      values <- as.numeric(values)
+    }
+    # Flatten arrays/matrices (e.g. the 64 x n_cells gene_expression_encoding
+    # dataset) to a plain vector before hashing, so dimension bookkeeping
+    # differences do not cause spurious mismatches.
+    if (is.array(values) || is.matrix(values)) {
+      values <- as.vector(values)
+    }
+    digest::digest(values, algo = "md5")
+  }
+
+  dataset.paths.a <- ListDatasetPaths(file.a)
+  dataset.paths.b <- ListDatasetPaths(file.b)
+  # Compare the union, so a dataset present in only one file is reported
+  # as a problem rather than silently skipped.
+  all.dataset.paths <- union(dataset.paths.a, dataset.paths.b)
+
+  # For each dataset path, compute its hash in file.a (if present there)
+  # and in file.b (if present there); NA_character_ marks "not present".
+  hashes.a <- vapply(
+    all.dataset.paths,
+    function(path) {
+      if (path %in% dataset.paths.a) {
+        HashDatasetValues(file.a, path)
+      } else {
+        NA_character_
+      }
+    },
+    character(1)
+  )
+  hashes.b <- vapply(
+    all.dataset.paths,
+    function(path) {
+      if (path %in% dataset.paths.b) {
+        HashDatasetValues(file.b, path)
+      } else {
+        NA_character_
+      }
+    },
+    character(1)
+  )
+  # Release handles opened while hashing before we potentially stop().
+  rhdf5::h5closeAll()
+
+  # Classify the three kinds of problems we might find.
+  missing.from.a <- all.dataset.paths[!(all.dataset.paths %in% dataset.paths.a)]
+  missing.from.b <- all.dataset.paths[!(all.dataset.paths %in% dataset.paths.b)]
+  mismatched <- all.dataset.paths[
+    !is.na(hashes.a) & !is.na(hashes.b) & hashes.a != hashes.b
+  ]
+
+  problems <- c(
+    if (length(missing.from.a)) {
+      paste0("Only in ", file.b, ": ", paste(missing.from.a, collapse = ", "))
+    },
+    if (length(missing.from.b)) {
+      paste0("Only in ", file.a, ": ", paste(missing.from.b, collapse = ", "))
+    },
+    if (length(mismatched)) {
+      paste0("Value mismatch: ", paste(mismatched, collapse = ", "))
+    }
+  )
+
+  if (length(problems)) {
+    stop(
+      "Dataset verification failed between:\n  ",
+      file.a,
+      "\n  ",
+      file.b,
+      "\n",
+      paste(problems, collapse = "\n")
+    )
+  }
+
+  message(
+    "Verified ",
+    length(all.dataset.paths),
+    " datasets identical between:\n  ",
+    file.a,
+    "\n  ",
+    file.b
+  )
+  invisible(TRUE)
+}
