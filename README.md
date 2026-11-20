@@ -451,6 +451,30 @@ VariableFeaturePlot2(
 
 ***
 
+### `ConvertCellBenderInt64ToInt32()`
+
+Converts a CellBender HDF5 matrix's `/matrix/data` column from 64-bit integers to 32-bit integers to ensure compatibility with BPCells and other packages that expect standard 10X HDF5 format. Sometimes CellBender outputs store count values as int64 instead of the standard int32, causing failures with `BPCells::open_matrix_10x_hdf5()`. This function repairs the affected dataset without modifying the input file, performing comprehensive whole-file verification via MD5 checksums to guarantee data integrity.
+
+```r
+ConvertCellBenderInt64ToInt32(
+  input.h5,
+  output.h5,
+  overwrite = FALSE,
+  verify = TRUE
+)
+```
+
+| Parameter | Default | Description |
+| :-- | :-- | :-- |
+| `input.h5` | — | Path to the original CellBender HDF5 file (read-only) |
+| `output.h5` | — | Path where the repaired copy is written |
+| `overwrite` | `FALSE` | If `TRUE`, silently replace `output.h5` if it already exists |
+| `verify` | `TRUE` | If `TRUE`, perform whole-file MD5 verification after rewriting |
+
+**Returns:** Invisibly, `input.h5` if `/matrix/data` is already 32-bit (no conversion needed), or `output.h5` if conversion was performed.
+
+***
+
 ## Internal functions
 
 The following functions are internal helpers not exported from the namespace. They are documented here for reference.
@@ -467,6 +491,18 @@ Applies `.ComputeFeatureThreshold()` across all layers of a Seurat assay and sto
 
 Converts ENSEMBL gene IDs to gene symbols for a raw count matrix using `biomaRt`. Returns the filtered matrix with symbol rownames. Requires `biomaRt` and `dplyr`; not exported.
 
+### `.H5DatasetIntSize()`
+
+Reads only the HDF5 *datatype* (e.g., 4 bytes for int32, 8 bytes for int64) of a dataset without reading the actual values. This makes the check efficient even for massive datasets, as HDF5 stores the datatype as metadata separate from the bulk data. Used internally by `ConvertCellBenderInt64ToInt32()` as a cheap pre-check.
+
+### `.GetH5DatasetStorageSettings()`
+
+Inspects a dataset's HDF5 creation property list and extracts the chunk size, gzip compression level, and byte-shuffle filter settings. This information is used to preserve the original storage configuration when rewriting HDF5 datasets, ensuring compression behavior is not silently changed.
+
+### `.VerifyAllDatasetsIdentical()`
+
+Enumerates every dataset in two HDF5 files, reads each dataset's values, and compares them via MD5 digest. This is the safety net that confirms no data corruption occurred during file transformations. The function checks all groups (including `droplet_latents`, `global_latents`, and `metadata`) and stops with detailed error reporting if any dataset is missing or its values differ. Used by `ConvertCellBenderInt64ToInt32()` as the whole-file verification step.
+
 ### `.SetCommonScales()`
 
 Sets common x and y axis limits across a `patchwork` joined ggplot object. Used internally by `FeatureScatterGradient()` and `FeatureDensityPlot()` when `common.scales = TRUE`.
@@ -477,7 +513,7 @@ Collapses multiple boolean columns into a single logical column, returning `TRUE
 ### `FilterVariableFeatures()`
 Fiters the high variable features of a Seurat object after applying `Seurat::FindVariableFeatures()` to delete low-informative genes such as mitochondrial, ribosomal, antisense and non-coding genes.
 
-## `SelectPCs()`
+### `SelectPCs()`
 Uses intrinsicDimension's maxLikGlobalDimEst() to estimate the intrinsic dimensionality of a Seurat object based on the PCA embeddings calculated with `Seurat::RunPCA()`. It returns a vector with the most informative PCs. This allows to automatize the number of PCs for use in downstream analyses such as clustering and UMAP/tSNE computation.
 
 ***

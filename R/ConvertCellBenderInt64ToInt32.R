@@ -1,7 +1,5 @@
 #' @title ConvertCellBenderInt64ToInt32
 #'
-#' Convert a CellBender HDF5 matrix's `/matrix/data` from int64 to int32
-#'
 #' @description
 #' Some CellBender HDF5 outputs store the count values in `/matrix/data` as
 #' 64-bit integers instead of the 32-bit integers used by the standard 10x

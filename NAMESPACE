@@ -4,6 +4,7 @@ export(BatchOpenH5)
 export(CalculateCDR)
 export(CalculateQC)
 export(CellsHistoGradient)
+export(ConvertCellBenderInt64ToInt32)
 export(ExtractFeatureTestResults)
 export(FeatureDensityPlot)
 export(FeatureScatterGradient)
@@ -23,6 +24,12 @@ import(fgsea)
 import(futurize)
 import(ggplot2)
 import(patchwork)
+importFrom(BPCells,
+  open_matrix_10x_hdf5,
+  open_matrix_anndata_hdf5,
+  open_matrix_dir,
+  write_matrix_dir
+)
 importFrom(data.table,rbindlist)
 importFrom(dplyr,
   any_of,
@@ -56,7 +63,24 @@ importFrom(intrinsicDimension,
   maxLikPointwiseDimEst
 )
 importFrom(purrr,reduce)
-importFrom(rhdf5,h5read)
+importFrom(rhdf5,
+  H5Dclose,
+  H5Dget_create_plist,
+  H5Dget_type,
+  H5Dopen,
+  H5Fclose,
+  H5Fopen,
+  H5Pget_chunk,
+  H5Pget_filter,
+  H5Pget_nfilters,
+  H5Tget_size,
+  h5closeAll,
+  h5createDataset,
+  h5delete,
+  h5ls,
+  h5read,
+  h5write
+)
 importFrom(scales,label_percent)
 importFrom(stats,
   cor,

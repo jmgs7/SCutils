@@ -1,0 +1,7 @@
+## SCutils v0.12.0
+
+### 🚀 New features!
+
+- We added a new function, `ConvertCellBenderInt64toInt32()`. Sometimes, when working with CellBender filtered matrices, the "matrix/data" column of the h5 file is converted to int64 instead of the standard 10X int32 matrix. This causes incompatibilities with some packages such as BPCells, which expects the matrix to follow 10X specification. This function takes a h5 matrix filepath as input, and if the matrix/data is in int64, it transforms it to int32.
+- We also integrated this functionality in `BatchOpenH5()` to automatically check if a matrix has been formated incorrectly after being processed through CellBender when `platform = 'CellBender'`. In that case, it generates a temp h5 file with the corrected int32 matrix, and generates the BPCells matrices from that file, leaving the original h5 matrices untouched. 
+- We have peformed intensive testing to ensure that this conversion does not affect the counts of the h5 matrices, and results are 100% identical. In addition, by default `ConvertCellBenderInt64toInt32()` verifies the MD5 cheksums of each group of the matrix to ensure every single piece of information remains the same after the conversion.

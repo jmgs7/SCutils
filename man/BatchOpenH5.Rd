@@ -26,11 +26,13 @@ working directory. Default is `TRUE`.}
 \item{BP.data.dir}{Character scalar directory where `*_BP` matrix folders are
 created. If `NULL`, uses `dirname(files[[1]])`.}
 
-\item{platform}{Character scalar, either `"10X"` or `"anndata"`. Default is
-`"10X"`.}
+\item{platform}{Character scalar, either `"10X"`, `"CellBender"` or `"anndata"`. Default is
+`"10X"`. When using `"CellBender"`, the function will call `SCUtils::ConvertCellbenderInt64toInt32()`
+ to convert faulty int64 matrix/data columns to 10X-compatible int32 data.}
 
-\item{use.names}{Logical; only used for `platform = "10X"`. If `TRUE`, replaces
-row names with `/matrix/features/name` from the HDF5 file. Default is `TRUE`.}
+\item{use.names}{Logical; only used for `platform = "10X"` or `platform = CellBender`.
+If `TRUE`, replaces row names with `/matrix/features/name` from the HDF5 file.
+Default is `TRUE`.}
 
 \item{ensembl.to.symbol}{Logical; if `TRUE` and `use.names = FALSE`, converts
 ENSEMBL IDs to gene symbols with `ConvertEnsembleToSymbol2()`. Default is
@@ -53,8 +55,9 @@ If `generate.metadata = FALSE`, a named list of BPCells matrices. Names
 For each file in `files`, this function:
 - creates a BPCells matrix directory with `"_BP"` suffix in `BP.data.dir`
   (if it does not already exist),
-- reads the matrix from either 10X HDF5 (`platform = "10X"`) or AnnData HDF5
-  (`platform = "anndata"`),
+- reads the matrix from either 10X HDF5 (`platform = "10X"`), AnnData HDF5
+  (`platform = "anndata"`), or the filtered matrices from CellBender with
+  (`platform = "CellBender"`)
 - optionally replaces 10X feature IDs with `/matrix/features/name` when
   `use.names = TRUE`,
 - reopens the saved BPCells matrix directory,
@@ -77,8 +80,7 @@ plan(multisession, workers = 4)
 mats <- BatchOpenH5(
   files = c("/path/to/sample1.h5", "/path/to/sample2.h5"),
   BP.data.dir = "/path/to/bp_matrices",
-  platform = "10X",
-  mc.cores = 2
+  platform = "10X"
 )
 
 out <- BatchOpenH5(
@@ -87,4 +89,7 @@ out <- BatchOpenH5(
 )
 }
 
+}
+\seealso{
+[ConvertCellBenderInt64toInt32()] for the CellBender int64-to-int32 conversion step.
 }
