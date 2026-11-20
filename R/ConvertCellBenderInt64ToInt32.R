@@ -1,4 +1,4 @@
-#' @title ConvertCellbenderInt64ToInt32
+#' @title ConvertCellBenderInt64ToInt32
 #'
 #' Convert a CellBender HDF5 matrix's `/matrix/data` from int64 to int32
 #'
@@ -27,9 +27,9 @@
 #'   \item \strong{Cheap pre-check.} Read only the HDF5 *datatype* (not the
 #'     values) of `/matrix/data`. If it is already 4 bytes (int32),
 #'     there is nothing to fix: the function prints an informative
-#'     message and returns the input file path as invisible output 
-#'     \emph{without raising an error}, so it is safe to call unconditionally 
-#'     inside a loop or a pipeline over many files without special-casing 
+#'     message and returns the input file path as invisible output
+#'     \emph{without raising an error}, so it is safe to call unconditionally
+#'     inside a loop or a pipeline over many files without special-casing
 #'     "already OK" files.
 #'   \item \strong{Copy + targeted rewrite.} Copy the whole input file
 #'     byte-for-byte (so every group/dataset/attribute other than
@@ -83,7 +83,7 @@
 #' @examples
 #' \dontrun{
 #' # Single file.
-#' ConvertCellbenderInt64ToInt32(
+#' ConvertCellBenderInt64ToInt32(
 #'   input.h5  = "path/to/input.h5",
 #'   output.h5 = "~path/to/output.h5"
 #' )
@@ -95,7 +95,7 @@
 #'   "datadir/", pattern = "\\.h5$", full.names = TRUE
 #' )
 #' for (f in h5.files) {
-#'   ConvertCellbenderInt64ToInt32(
+#'   ConvertCellBenderInt64ToInt32(
 #'     input.h5  = f,
 #'     output.h5 = sub("\\.h5$", "_int32.h5", f)
 #'   )
@@ -108,7 +108,7 @@
 #'
 #' @importFrom rhdf5 h5read h5delete h5createDataset h5write h5closeAll
 #' @export
-ConvertCellbenderInt64ToInt32 <- function(
+ConvertCellBenderInt64ToInt32 <- function(
   input.h5,
   output.h5,
   overwrite = FALSE,

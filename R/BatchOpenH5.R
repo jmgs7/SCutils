@@ -3,8 +3,9 @@
 #' For each file in `files`, this function:
 #' - creates a BPCells matrix directory with `"_BP"` suffix in `BP.data.dir`
 #'   (if it does not already exist),
-#' - reads the matrix from either 10X HDF5 (`platform = "10X"`) or AnnData HDF5
-#'   (`platform = "anndata"`),
+#' - reads the matrix from either 10X HDF5 (`platform = "10X"`), AnnData HDF5
+#'   (`platform = "anndata"`), or the filtered matrices from CellBender with
+#'   (`platform = "CellBender"`)
 #' - optionally replaces 10X feature IDs with `/matrix/features/name` when
 #'   `use.names = TRUE`,
 #' - reopens the saved BPCells matrix directory,
@@ -28,10 +29,12 @@
 #'   working directory. Default is `TRUE`.
 #' @param BP.data.dir Character scalar directory where `*_BP` matrix folders are
 #'   created. If `NULL`, uses `dirname(files[[1]])`.
-#' @param platform Character scalar, either `"10X"` or `"anndata"`. Default is
-#'   `"10X"`.
-#' @param use.names Logical; only used for `platform = "10X"`. If `TRUE`, replaces
-#'   row names with `/matrix/features/name` from the HDF5 file. Default is `TRUE`.
+#' @param platform Character scalar, either `"10X"`, `"CellBender"` or `"anndata"`. Default is
+#'   `"10X"`. When using `"CellBender"`, the function will call `SCUtils::ConvertCellbenderInt64toInt32()`
+#'    to convert faulty int64 matrix/data columns to 10X-compatible int32 data.
+#' @param use.names Logical; only used for `platform = "10X"` or `platform = CellBender`.
+#'   If `TRUE`, replaces row names with `/matrix/features/name` from the HDF5 file.
+#'   Default is `TRUE`.
 #' @param ensembl.to.symbol Logical; if `TRUE` and `use.names = FALSE`, converts
 #'   ENSEMBL IDs to gene symbols with `ConvertEnsembleToSymbol2()`. Default is
 #'   `FALSE`.
@@ -51,8 +54,7 @@
 #' mats <- BatchOpenH5(
 #'   files = c("/path/to/sample1.h5", "/path/to/sample2.h5"),
 #'   BP.data.dir = "/path/to/bp_matrices",
-#'   platform = "10X",
-#'   mc.cores = 2
+#'   platform = "10X"
 #' )
 #'
 #' out <- BatchOpenH5(
@@ -61,8 +63,10 @@
 #' )
 #' }
 #'
+#' @seealso [ConvertCellBenderInt64toInt32()] for the CellBender int64-to-int32 conversion step.
+#'
 #' @importFrom rhdf5 h5read
-#' @import BPCells
+#' @importFrom BPCells open_matrix_10x_hdf5 open_matrix_anndata_hdf5 open_matrix_dir write_matrix_dir
 #' @import futurize
 #' @export
 
@@ -100,7 +104,7 @@ BatchOpenH5 <- function(
     if (!dir.exists(save.path)) {
       if (platform == '10X') {
         message(paste("Processing 10X file:", open.path))
-        data <- open_matrix_10x_hdf5(open.path)
+        data <- BPCells::open_matrix_10x_hdf5(open.path)
         if (use.names) {
           feature.names <- rhdf5::h5read(open.path, "/matrix/features/name")
           message(paste("Changed gene names for 10X file:", open.path))
@@ -108,15 +112,31 @@ BatchOpenH5 <- function(
         }
       } else if (platform == 'anndata') {
         message(paste("Processing anndata file:", open.path))
-        data <- open_matrix_anndata_hdf5(open.path)
+        data <- BPCells::open_matrix_anndata_hdf5(open.path)
+      } else if (platform == 'CellBender') {
+        message(paste("Processing CellBender file:", open.path))
+        # Convert int64 to int32 if necessary
+        temp.h5 <- tempfile(fileext = ".h5")
+        file.h5 <- ConvertCellBenderInt64ToInt32(
+          input.h5 = open.path,
+          output.h5 = temp.h5
+        )
+        data <- BPCells::open_matrix_10x_hdf5(file.h5)
+        if (use.names) {
+          feature.names <- rhdf5::h5read(file.h5, "/matrix/features/name")
+          message(paste("Changed gene names for CellBender file:", open.path))
+          rownames(data) <- feature.names
+        }
       } else {
-        stop("Unsupported platform. Please specify '10X' or 'anndata'.")
+        stop(
+          "Unsupported platform. Please specify '10X', 'anndata' or 'CellBender'."
+        )
       }
       message(paste("Writing BPCells matrix to directory:", save.path))
-      write_matrix_dir(mat = data, dir = save.path)
+      BPCells::write_matrix_dir(mat = data, dir = save.path)
     }
 
-    mat <- open_matrix_dir(dir = save.path)
+    mat <- BPCells::open_matrix_dir(dir = save.path)
     message(paste("Loaded matrix file:", open.path))
 
     if (relative) {
@@ -152,7 +172,7 @@ BatchOpenH5 <- function(
     return(mat)
   }
 
-  # Multicore processing of files with mclapply. On Windows, this will run sequentially due to mc.cores being set to 1.
+  # Multicore processing of files with futurize.
   data.list <- lapply(
     files,
     process_one_file,
@@ -163,8 +183,8 @@ BatchOpenH5 <- function(
     ensembl.to.symbol = ensembl.to.symbol,
     species = species
   ) |>
-    futurize::futurize()
-  # Set the names of the list to the base names of the files without the .h5* extension
+    futurize::futurize(seed = TRUE)
+  # Set the names of the list to the base names of the files without the \\.h5*$ extension
   names(data.list) <- gsub("\\.h5$", "", basename(files))
 
   # Generate simple metadata indicating the procedence of the sample if requested.
@@ -181,7 +201,7 @@ BatchOpenH5 <- function(
         )
       }
     ) |>
-      futurize::futurize()
+      futurize::futurize(seed = TRUE)
 
     metadata <- Reduce(rbind, meta.list)
     output <- list(data.list = data.list, metadata = metadata)
